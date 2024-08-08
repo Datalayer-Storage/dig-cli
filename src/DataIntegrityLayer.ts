@@ -2,15 +2,12 @@ import * as fs from "fs";
 import * as path from "path";
 import * as crypto from "crypto";
 import * as zlib from "zlib";
-import * as os from "os";
 import { SHA256 } from "crypto-js";
 import { MerkleTree } from "merkletreejs";
 import { Readable } from "stream";
 import { promisify } from "util";
 
-const copyFile = promisify(fs.copyFile);
 const unlink = promisify(fs.unlink);
-const sleep = promisify(setTimeout);
 
 /**
  * Convert a string to hexadecimal representation.
@@ -37,29 +34,55 @@ const removeEmptyDirectories = (dir: string): void => {
 };
 
 /**
+ * Check if a string is a valid hexadecimal string.
+ * @param str - The string to validate.
+ * @returns True if the string is a valid hex string, false otherwise.
+ */
+const isHexString = (str: string): boolean => {
+  return /^[0-9a-fA-F]+$/.test(str) && str.length % 2 === 0;
+};
+
+interface DataIntegrityLayerOptions {
+  storeDir?: string;
+  storageMode?: "local" | "unified";
+}
+
+/**
  * DataStoreManager class to manage Merkle tree operations.
  */
-class MerkleManager {
+class DataIntegrityLayer {
   private storeId: string;
   private storeBaseDir: string;
   private storeDir: string;
+  private dataDir: string;
   public files: Map<string, { hash: string; sha256: string }>;
   private tree: MerkleTree;
 
-  constructor(storeId: string) {
-    if (storeId.length !== 64) {
+  constructor(storeId: string, options: DataIntegrityLayerOptions = {}) {
+    if (!isHexString(storeId) || storeId.length !== 64) {
       throw new Error("storeId must be a 64 char hex string");
     }
     this.storeId = storeId;
-    this.storeBaseDir = path.join(require("os").homedir(), ".dig", "stores");
-    this.storeDir = path.join(this.storeBaseDir, this.storeId);
-
+    this.storeBaseDir = options.storeDir || "./";
+    
     if (!fs.existsSync(this.storeBaseDir)) {
       fs.mkdirSync(this.storeBaseDir, { recursive: true });
     }
+    
+    if (options.storageMode === "unified") {
+      this.dataDir = path.join(this.storeBaseDir, "data");
+    } else {
+      this.dataDir = path.join(this.storeBaseDir, this.storeId, "data");
+    }
+    
+    this.storeDir = path.join(this.storeBaseDir, this.storeId);
 
     if (!fs.existsSync(this.storeDir)) {
       fs.mkdirSync(this.storeDir, { recursive: true });
+    }
+
+    if (!fs.existsSync(this.dataDir)) {
+      fs.mkdirSync(this.dataDir, { recursive: true });
     }
 
     this.files = new Map();
@@ -103,11 +126,8 @@ class MerkleManager {
    * @returns The write stream for the file.
    */
   private _createWriteStream(sha256: string): fs.WriteStream {
-    const dataDir = path.join(this.storeDir, "data");
-
-    // Create the subdirectories and file path
     const subDirs = sha256.match(/.{1,2}/g) || [];
-    const fileDir = path.join(dataDir, ...subDirs.slice(0, -1));
+    const fileDir = path.join(this.dataDir, ...subDirs.slice(0, -1));
     const fileName = subDirs[subDirs.length - 1];
     const fileSavePath = path.join(fileDir, fileName);
 
@@ -119,13 +139,33 @@ class MerkleManager {
   }
 
   /**
+   * Stream file from one path to another.
+   * @param src - The source file path.
+   * @param dest - The destination file path.
+   */
+  private async _streamFile(src: string, dest: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const readStream = fs.createReadStream(src);
+      const writeStream = fs.createWriteStream(dest);
+
+      readStream.pipe(writeStream);
+
+      writeStream.on("finish", resolve);
+      writeStream.on("error", reject);
+      readStream.on("error", reject);
+    });
+  }
+
+  /**
    * Upsert a key with a binary stream to the Merkle tree.
    * Compresses the file, calculates the SHA-256 of the uncompressed file, and stores it.
    * @param readStream - The binary data stream.
-   * @param key - The key for the binary data.
+   * @param key - The hexadecimal key for the binary data.
    */
   async upsertKey(readStream: Readable, key: string): Promise<void> {
-    const hexKey = toHex(key);
+    if (!isHexString(key)) {
+      throw new Error(`key must be a valid hex string: ${key}`);
+    }
     const uncompressedHash = crypto.createHash("sha256");
     const gzip = zlib.createGzip();
 
@@ -158,12 +198,12 @@ class MerkleManager {
         }
 
         try {
-          await this.streamFile(tempFilePath, finalPath);
+          await this._streamFile(tempFilePath, finalPath);
           await unlink(tempFilePath);
 
           const combinedHash = crypto
             .createHash("sha256")
-            .update(`${hexKey}/${sha256}`)
+            .update(`${key}/${sha256}`)
             .digest("hex");
 
           if (
@@ -175,12 +215,12 @@ class MerkleManager {
             return resolve();
           }
 
-          if (this.files.has(hexKey)) {
+          if (this.files.has(key)) {
             this.deleteKey(key);
           }
 
           console.log(`Successfully inserted key: ${key}`);
-          this.files.set(hexKey, {
+          this.files.set(key, {
             hash: combinedHash,
             sha256: sha256,
           });
@@ -202,31 +242,15 @@ class MerkleManager {
   }
 
   /**
-   * Stream file from one path to another.
-   * @param src - The source file path.
-   * @param dest - The destination file path.
-   */
-  private async streamFile(src: string, dest: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const readStream = fs.createReadStream(src);
-      const writeStream = fs.createWriteStream(dest);
-
-      readStream.pipe(writeStream);
-
-      writeStream.on("finish", resolve);
-      writeStream.on("error", reject);
-      readStream.on("error", reject);
-    });
-  }
-
-  /**
    * Delete a key from the Merkle tree.
-   * @param key - The key to delete.
+   * @param key - The hexadecimal key to delete.
    */
   deleteKey(key: string): void {
-    const hexKey = toHex(key);
-    if (this.files.has(hexKey)) {
-      this.files.delete(hexKey);
+    if (!isHexString(key)) {
+      throw new Error("key must be a valid hex string");
+    }
+    if (this.files.has(key)) {
+      this.files.delete(key);
       this._rebuildTree();
       console.log(`Deleted key: ${key}`);
     }
@@ -238,6 +262,10 @@ class MerkleManager {
    * @returns The list of keys.
    */
   listKeys(rootHash: string | null = null): string[] {
+    if (rootHash && !isHexString(rootHash)) {
+      throw new Error("rootHash must be a valid hex string");
+    }
+
     if (rootHash) {
       const tree = this.deserializeTree(rootHash);
       // @ts-ignore
@@ -272,6 +300,10 @@ class MerkleManager {
    * @returns The serialized Merkle tree.
    */
   serialize(rootHash: string | null = null): object {
+    if (rootHash && !isHexString(rootHash)) {
+      throw new Error("rootHash must be a valid hex string");
+    }
+
     if (rootHash) {
       const tree = this.deserializeTree(rootHash);
       return {
@@ -294,6 +326,10 @@ class MerkleManager {
    * @returns The deserialized Merkle tree.
    */
   deserializeTree(rootHash: string): MerkleTree {
+    if (!isHexString(rootHash)) {
+      throw new Error("rootHash must be a valid hex string");
+    }
+
     const treeFilePath = path.join(this.storeDir, `${rootHash}.dat`);
     if (!fs.existsSync(treeFilePath)) {
       throw new Error(`Tree file ${treeFilePath} does not exist`);
@@ -316,7 +352,7 @@ class MerkleManager {
   /**
    * Commit the current state of the Merkle tree.
    */
-  commit(): string | undefined {
+  commit(): string {
     const rootHash =
       this.tree.getLeafCount() === 0
         ? "0000000000000000000000000000000000000000000000000000000000000000"
@@ -328,7 +364,7 @@ class MerkleManager {
 
     if (rootHash === latestRootHash) {
       console.log("No changes to commit. Aborting commit.");
-      return undefined;
+      return rootHash;
     }
 
     const manifestPath = path.join(this.storeDir, "manifest.dat");
@@ -359,6 +395,13 @@ class MerkleManager {
    * @returns The readable stream for the file.
    */
   getValueStream(hexKey: string, rootHash: string | null = null): Readable {
+    if (!isHexString(hexKey)) {
+      throw new Error("key must be a valid hex string");
+    }
+    if (rootHash && !isHexString(rootHash)) {
+      throw new Error("rootHash must be a valid hex string");
+    }
+
     let sha256: string | undefined;
 
     if (rootHash) {
@@ -373,11 +416,7 @@ class MerkleManager {
       throw new Error(`File with key ${hexKey} not found.`);
     }
 
-    const filePath = path.join(
-      this.storeDir,
-      "data",
-      sha256.match(/.{1,2}/g)!.join("/")
-    );
+    const filePath = path.join(this.dataDir, sha256.match(/.{1,2}/g)!.join("/"));
 
     if (!fs.existsSync(filePath)) {
       throw new Error(`File at path ${filePath} does not exist`);
@@ -413,6 +452,16 @@ class MerkleManager {
     sha256: string,
     rootHash: string | null = null
   ): string {
+    if (!isHexString(hexKey)) {
+      throw new Error("key must be a valid hex string");
+    }
+    if (!isHexString(sha256)) {
+      throw new Error("sha256 must be a valid hex string");
+    }
+    if (rootHash && !isHexString(rootHash)) {
+      throw new Error("rootHash must be a valid hex string");
+    }
+
     if (!rootHash) {
       const manifest = this._loadManifest();
       rootHash = manifest[manifest.length - 1];
@@ -447,6 +496,13 @@ class MerkleManager {
    * @returns True if the proof is valid, false otherwise.
    */
   verifyProof(proofObjectHex: string, sha256: string): boolean {
+    if (!isHexString(proofObjectHex)) {
+      throw new Error("proofObjectHex must be a valid hex string");
+    }
+    if (!isHexString(sha256)) {
+      throw new Error("sha256 must be a valid hex string");
+    }
+
     // Convert the proofObjectHex back to a proof object
     const proofObject = JSON.parse(
       Buffer.from(proofObjectHex, "hex").toString("utf8")
@@ -477,6 +533,10 @@ class MerkleManager {
     rootHash1: string,
     rootHash2: string
   ): { added: Map<string, string>; deleted: Map<string, string> } {
+    if (!isHexString(rootHash1) || !isHexString(rootHash2)) {
+      throw new Error("rootHash1 and rootHash2 must be valid hex strings");
+    }
+
     const tree1 = this.deserializeTree(rootHash1);
     const tree2 = this.deserializeTree(rootHash2);
 
@@ -504,14 +564,21 @@ class MerkleManager {
   }
 
   /**
-   * Verify the integrity of a file based on its SHA-256 hash.
+   * Verify the integrity of a file based on its SHA-256 hash and check if it is in the specified Merkle root.
    * @param sha256 - The SHA-256 hash of the file.
-   * @returns True if the file integrity is verified, false otherwise.
+   * @param root - The root hash to check against.
+   * @returns True if the file integrity is verified and it is in the Merkle root, false otherwise.
    */
-  async verifyKeyIntegrity(sha256: string): Promise<boolean> {
+  async verifyKeyIntegrity(sha256: string, rootHash: string): Promise<boolean> {
+    if (!isHexString(sha256)) {
+      throw new Error("sha256 must be a valid hex string");
+    }
+    if (!isHexString(rootHash)) {
+      throw new Error("rootHash must be a valid hex string");
+    }
+
     const filePath = path.join(
-      this.storeDir,
-      "data",
+      this.dataDir,
       sha256.match(/.{1,2}/g)!.join("/")
     );
 
@@ -534,7 +601,20 @@ class MerkleManager {
         const uncompressedSha256 = hash.digest("hex");
         const isValid = uncompressedSha256 === sha256;
         console.log(`SHA-256 of uncompressed file: ${uncompressedSha256}`);
-        resolve(isValid);
+
+        if (!isValid) {
+          return resolve(false);
+        }
+
+        const tree = this.deserializeTree(rootHash);
+        const combinedHash = crypto
+          .createHash("sha256")
+          .update(`${toHex(sha256)}/${sha256}`)
+          .digest("hex");
+        const leaf = Buffer.from(combinedHash, "hex");
+        const isInTree = tree.getLeafIndex(leaf) !== -1;
+
+        resolve(isInTree);
       });
 
       decompressStream.on("error", (err) => {
@@ -548,4 +628,4 @@ class MerkleManager {
   }
 }
 
-export { MerkleManager };
+export { DataIntegrityLayer };

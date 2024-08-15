@@ -12,7 +12,7 @@ export async function createDataLayerStore(inputs: CreateStoreUserInputs = {}) {
     const newStoreCoin = await mintDataLayerStore(
       finalInputs.label!,
       finalInputs.description!,
-      BigInt(0), // Assuming this is some default or fixed value
+      BigInt(0),
       finalInputs.authorizedWriter
     );
 
@@ -21,7 +21,8 @@ export async function createDataLayerStore(inputs: CreateStoreUserInputs = {}) {
 
     try {
       const peer = await getPeer();
-      await waitForConfirmation(peer, getCoinId(newStoreCoin.coin));
+      console.log(`Coin ID: ${getCoinId(newStoreCoin.coin).toString('hex')}`);
+      await waitForConfirmation(peer, newStoreCoin.coin.parentCoinInfo);
     } catch (error: any) {
       console.error(error.message);
     }

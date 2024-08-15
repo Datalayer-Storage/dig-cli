@@ -1,14 +1,16 @@
 import { getOrCreateMnemonic, deleteMnemonic, getMnemonic, importMnemonic } from "./blockchain/mnemonic";
-import { checkStorePermissions } from "./actions/middleware";
+import { checkStorePermissions, ensureStoreIsSpendable } from "./actions/middleware";
 import { commit, push, pull, clone, setRemote, init } from "./actions";
+import { CreateStoreUserInputs } from './types';
 
 // Command handlers
 export const handlers = {
-  init: async () => {
-    await init();
+  init: async (inputs: CreateStoreUserInputs) => {
+    await init(inputs);
   },
   commit: async () => {
-    await checkStorePermissions();
+   // await checkStorePermissions();
+   // await ensureStoreIsSpendable();
     await commit();
     console.log("Commit command executed");
   },
@@ -38,9 +40,9 @@ export const handlers = {
    // await setRemote(connectionString);
     console.log(`Remote set executed with connectionString: ${connectionString}`);
   },
-  manageKeys: async (action: string) => {
+  manageKeys: async (action: string, providedMnemonic?: string) => {
     if (action === "import") {
-      const mnemonic = await importMnemonic();
+      const mnemonic = await importMnemonic(providedMnemonic);
       console.log(`Mnemonic imported: ${mnemonic}`);
     } else if (action === "generate") {
       const mnemonic = await getOrCreateMnemonic();

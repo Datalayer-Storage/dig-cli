@@ -18,11 +18,25 @@ import {
   DelegatedPuzzle,
   DelegatedPuzzleInfo,
   puzzleHashToAddress,
-  DataStoreMetadata
+  DataStoreMetadata,
+  meltStore,
+  addFee,
+  updateStoreMetadata,
 } from "datalayer-driver";
 import { getPeer } from "./peer";
-import { getPublicSyntheticKey, getPrivateSyntheticKey, getOwnerPuzzleHash } from "./keys";
-import { NETWORK_AGG_SIG_DATA, MIN_HEIGHT, MIN_HEIGHT_HEADER_HASH } from "../config";
+import {
+  getPublicSyntheticKey,
+  getPrivateSyntheticKey,
+  getOwnerPuzzleHash,
+  getOwnerPublicKey,
+} from "./keys";
+import {
+  NETWORK_AGG_SIG_DATA,
+  MIN_HEIGHT,
+  MIN_HEIGHT_HEADER_HASH,
+  HEIGHT_FILE_PATH,
+  COIN_STATE_FILE_PATH,
+} from "../config";
 import { selectUnspentCoins } from "./coins";
 
 export const mintDataLayerStore = async (
@@ -143,7 +157,9 @@ export const serializeStoreInfo = (storeInfo: DataStoreInfo): any => {
   };
 };
 
-export const deserializeStoreInfo = (filePath: string): DataStoreInfo | null => {
+export const deserializeStoreInfo = (
+  filePath: string
+): DataStoreInfo | null => {
   if (!fs.existsSync(filePath)) {
     return null;
   }
@@ -221,34 +237,142 @@ export const deserializeStoreInfo = (filePath: string): DataStoreInfo | null => 
   return dataStoreInfo;
 };
 
-export const checkStoreOwnership = async () => {
+/**
+ * Retrieves the latest DataStoreInfo by finding the top-level folder in the .dig directory that is a 64-character hex string.
+ *
+ * @returns {Promise<DataStoreInfo>} The latest DataStoreInfo.
+ */
+export const getLatestStoreInfo = async (): Promise<DataStoreInfo> => {
   const peer = await getPeer();
 
-  const dataStoreInfo = deserializeStoreInfo(
-    path.join(process.cwd(), ".dig", "state.data")
+  // Define the .dig folder path
+  const digFolderPath = path.resolve(process.cwd(), ".dig");
+
+  // Find the folder that has a 64-character hex name
+  const launcherId = findLauncherId(digFolderPath);
+
+  if (!launcherId) {
+    throw new Error("No valid data store folder found.");
+  }
+
+  const { latestInfo } = await peer.syncStoreFromLauncherId(
+    Buffer.from(launcherId, 'hex'),
+    MIN_HEIGHT,
+    Buffer.from(MIN_HEIGHT_HEADER_HASH, "hex")
   );
+
+  return latestInfo;
+};
+
+/**
+ * Finds the first top-level folder that is a 64-character hex string within the .dig directory.
+ *
+ * @param {string} dirPath - The .dig directory path.
+ * @returns {string | null} The name of the folder if found, otherwise null.
+ */
+const findLauncherId = (dirPath: string): string | null => {
+  if (!fs.existsSync(dirPath)) {
+    throw new Error(`Directory does not exist: ${dirPath}`);
+  }
+
+  const folders = fs.readdirSync(dirPath);
+
+  for (const folder of folders) {
+    const folderPath = path.join(dirPath, folder);
+    if (fs.lstatSync(folderPath).isDirectory() && /^[a-f0-9]{64}$/.test(folder)) {
+      return folder;
+    }
+  }
+
+  return null;
+};
+export const checkStoreOwnership = async (): Promise<boolean> => {
+  try {
+    const peer: Peer = await getPeer();
+
+  const dataStoreInfo = await getLatestStoreInfo();
 
   if (!dataStoreInfo) {
     return true;
   }
 
+  // Load height cache from HEIGHT_FILE_PATH, or use defaults if not found
+  let heightCache = {
+    minHeight: MIN_HEIGHT,
+    minHeightHeaderHash: MIN_HEIGHT_HEADER_HASH,
+  };
+  if (fs.existsSync(HEIGHT_FILE_PATH)) {
+    const fileContent = fs.readFileSync(HEIGHT_FILE_PATH, "utf-8");
+    heightCache = JSON.parse(fileContent);
+  }
+
+  const minHeight = heightCache.minHeight || MIN_HEIGHT;
+  const minHeightHeaderHash =
+    heightCache.minHeightHeaderHash || MIN_HEIGHT_HEADER_HASH;
+
+  // Sync store information from the blockchain
   const { latestInfo, latestHeight } = await peer.syncStoreFromLauncherId(
     dataStoreInfo.launcherId,
     MIN_HEIGHT,
     Buffer.from(MIN_HEIGHT_HEADER_HASH, "hex")
   );
 
+  const latestHeaderHash = await peer.getHeaderHash(latestHeight);
+
+  // Save the latest height and header hash to HEIGHT_FILE_PATH
+  const newHeightCache = {
+    minHeight: latestHeight,
+    minHeightHeaderHash: latestHeaderHash.toString("hex"),
+  };
+  fs.writeFileSync(HEIGHT_FILE_PATH, JSON.stringify(newHeightCache, null, 4));
+
+  // Get the current owner's puzzle hash
   const ownerPuzzleHash = await getOwnerPuzzleHash();
 
-  return latestInfo.ownerPuzzleHash === ownerPuzzleHash;
+  // Check if the store's owner matches the current owner's puzzle hash
+  return latestInfo.ownerPuzzleHash.equals(ownerPuzzleHash);
+  } catch (error) {
+    const resetHeightCache = {
+      minHeight: MIN_HEIGHT,
+      minHeightHeaderHash: MIN_HEIGHT_HEADER_HASH,
+    };
+
+    fs.writeFileSync(HEIGHT_FILE_PATH, JSON.stringify(resetHeightCache, null, 4));
+    return checkStoreOwnership();
+  }
+};
+
+export const meltDataLayerStore = async () => {
+  const storeInfo = await getLatestStoreInfo();
+  if (!storeInfo) {
+    throw new Error("No data store found in donfig.");
+  }
+
+  const peer = await getPeer();
+  const defaultFee = BigInt(10000);
+  const ownerPublicKey = await getOwnerPublicKey();
+  const meltStoreCoinSpends = await meltStore(
+    storeInfo,
+    Buffer.from(ownerPublicKey, "hex")
+  );
+  
+  const privateKey = await getPrivateSyntheticKey();
+  const unspentCoins = await selectUnspentCoins(peer, defaultFee);
+  const feeCoinSpends = await addFee(await getPublicSyntheticKey(), unspentCoins, meltStoreCoinSpends.map(coinSpend => getCoinId(coinSpend.coin)), defaultFee);
+  
+  const combinedCoinSpends = [...meltStoreCoinSpends as CoinSpend[], ...feeCoinSpends as CoinSpend[]];
+
+  const sig = signCoinSpends(
+    combinedCoinSpends,
+    [privateKey],
+    Buffer.from(NETWORK_AGG_SIG_DATA, "hex")
+  );
 };
 
 export const transferStoreOwnership = async (newOwner: string) => {
   const peer = await getPeer();
 
-  const dataStoreInfo = deserializeStoreInfo(
-    path.join(process.cwd(), ".dig", "state.data")
-  );
+  const dataStoreInfo = await getLatestStoreInfo();
 
   if (!dataStoreInfo) {
     throw new Error("No data store found.");
@@ -276,8 +400,52 @@ export const transferStoreOwnership = async (newOwner: string) => {
     Buffer.from(NETWORK_AGG_SIG_DATA, "hex")
   );
 
+  const err = await peer.broadcastSpend(coinSpends as CoinSpend[], [sig]);
+
+  if (err) {
+    throw new Error(err);
+  }
+
+  return newInfo;
+};
+
+export const updateDataStoreMetadata = async ({
+  rootHash,
+  label,
+  description,
+  size,
+}: DataStoreMetadata) => {
+  const storeInfo = await getLatestStoreInfo();
+
+  const peer = await getPeer();
+  const ownerPublicKey = await getPublicSyntheticKey();
+
+  // TODO: to make this work for all users we need a way to get the authorized writer public key as well and not just assume its the owner
+  const updateStoreResponse = updateStoreMetadata(
+    storeInfo,
+    rootHash,
+    label,
+    description,
+    size,
+    ownerPublicKey,
+    null,
+    null
+  );
+
+  const feeBigInt = BigInt(100000000);
+  const unspentCoins = await selectUnspentCoins(peer, feeBigInt);
+  const feeCoinSpends = await addFee(ownerPublicKey, unspentCoins, updateStoreResponse.coinSpends.map(coinSpend => getCoinId(coinSpend.coin)), feeBigInt);
+
+  const combinedCoinSpends = [...updateStoreResponse.coinSpends as CoinSpend[], ...feeCoinSpends as CoinSpend[]];
+
+  const sig = signCoinSpends(
+    combinedCoinSpends,
+    [await getPrivateSyntheticKey()],
+    Buffer.from(NETWORK_AGG_SIG_DATA, "hex")
+  );
+
   const err = await peer.broadcastSpend(
-    coinSpends as CoinSpend[],
+    combinedCoinSpends,
     [sig]
   );
 
@@ -285,5 +453,5 @@ export const transferStoreOwnership = async (newOwner: string) => {
     throw new Error(err);
   }
 
-  return newInfo;
+  return updateStoreResponse.newInfo;
 };

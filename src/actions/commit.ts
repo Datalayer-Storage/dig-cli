@@ -1,26 +1,101 @@
-import path from 'path';
-import { addDirectory } from '../utils';
-import { DataIntegrityLayer } from "../DataIntegrityLayer"; 
-import { deserializeStoreInfo } from "../blockchain/datastore";
-import { digFolderName, stateFileName, loadDigConfig } from '../config';
+import path from "path";
+import fs from "fs";
+import { addDirectory, calculateFolderSize } from "../utils";
+import { DataIntegrityLayer } from "../DataIntegrityLayer";
+import {
+  deserializeStoreInfo,
+  updateDataStoreMetadata,
+  serializeStoreInfo,
+  getLatestStoreInfo,
+} from "../blockchain/datastore";
+import {
+  DIG_FOLDER_PATH,
+  COIN_STATE_FILE_PATH,
+  getManifestFilePath,
+  loadDigConfig,
+} from "../config";
+import { waitForConfirmation } from "../blockchain/coins";
+import { getCoinId, DataStoreInfo } from "datalayer-driver";
+import { getPeer } from "../blockchain/peer";
 
 export const commit = async (): Promise<void> => {
-    const digDir = path.join(process.cwd(), digFolderName);
-    const stateFilePath = path.join(digDir, stateFileName);
-    const storeInfo = deserializeStoreInfo(stateFilePath);
+  try {
+    const latestStoreInfo = await getLatestStoreInfo();
 
-    if (!storeInfo) {
-        throw new Error("Store info not found. Please run init first.");
+    if (!latestStoreInfo) {
+      throw new Error("Store info not found. Please run init first.");
     }
 
-    const storeId = storeInfo.launcherId.toString('hex');
+    const onChainRootHash = latestStoreInfo.metadata.rootHash.toString("hex");
+    fs.writeFileSync(COIN_STATE_FILE_PATH, JSON.stringify(serializeStoreInfo(latestStoreInfo), null, 4));
 
-    const datalayer = new DataIntegrityLayer(storeId, {storageMode: 'local', storeDir: digDir});
+    await catchUpWithManifest(onChainRootHash, latestStoreInfo.launcherId.toString("hex"));
+
+    const storeId = latestStoreInfo.launcherId.toString("hex");
+
+    const datalayer = new DataIntegrityLayer(storeId, {
+      storageMode: "local",
+      storeDir: DIG_FOLDER_PATH,
+    });
     const digConfig = await loadDigConfig(process.cwd());
-    await addDirectory(datalayer, path.join(process.cwd(), digConfig.deploy_dir));
+
+    await addDirectory(
+      datalayer,
+      path.join(process.cwd(), digConfig.deploy_dir)
+    );
+
     const newRootHash = datalayer.commit();
 
-    // update the roothash on chain
+    const totalSize = calculateFolderSize(DIG_FOLDER_PATH);
+
+    console.log(`Updating store metadata with new root hash: ${newRootHash}, bytes: ${totalSize}`);
+
+    const updatedStoreInfo = await updateDataStoreMetadata({
+      rootHash: Buffer.from(newRootHash, "hex"),
+      size: totalSize,
+    });
+
+    const peer = await getPeer();
+
+    await waitForConfirmation(peer, updatedStoreInfo.coin.parentCoinInfo);
 
     console.log("Commit successful");
+  } catch (error: any) {
+    console.error("Failed to commit:", error.message);
+  }
+};
+
+const catchUpWithManifest = async (onChainRootHash: string, launcherId: string) => {
+  const peer = await getPeer();
+  const manifest = fs.readFileSync(getManifestFilePath(launcherId), "utf-8").trim();
+  const manifestRootHashes = manifest.split("\n");
+
+  // Find the index of the last on-chain root hash in the manifest
+  const lastOnChainIndex = manifestRootHashes.lastIndexOf(onChainRootHash);
+
+  if (lastOnChainIndex === -1) {
+    throw new Error("On-chain root hash not found in the manifest file.");
+  }
+
+  // Get the subsequent root hashes that need to be committed
+  const hashesToCommit = manifestRootHashes.slice(lastOnChainIndex + 1);
+
+  if (hashesToCommit.length > 0) {
+    console.log(`Committing ${hashesToCommit.length} root hashes from the manifest.`);
+    
+    for (const rootHash of hashesToCommit) {
+      console.log(`Committing root hash: ${rootHash}`);
+      const updatedStoreInfo = await updateDataStoreMetadata({
+        rootHash: Buffer.from(rootHash, "hex"),
+        size: calculateFolderSize(DIG_FOLDER_PATH),
+      });
+
+      await waitForConfirmation(peer, updatedStoreInfo.coin.parentCoinInfo);
+      fs.writeFileSync(COIN_STATE_FILE_PATH, JSON.stringify(serializeStoreInfo(updatedStoreInfo), null, 4));
+    }
+
+    console.log("Catch-up with manifest completed.");
+  } else {
+    console.log("On-chain root hash matches the last manifest root hash. No catch-up required.");
+  }
 };

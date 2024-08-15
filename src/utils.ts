@@ -1,10 +1,10 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as crypto from "crypto";
-import * as readline from 'readline';
-import superagent from 'superagent';
-import { DataIntegrityLayer } from "./DataIntegrityLayer"; 
-import { FileDetails, DigConfig } from './types';
+import * as readline from "readline";
+import superagent from "superagent";
+import { DataIntegrityLayer } from "./DataIntegrityLayer";
+import { FileDetails, DigConfig } from "./types";
 import ignore from "ignore";
 
 /**
@@ -67,15 +67,16 @@ export const addDirectory = async (
 
 /**
  * Verifies if a connection string is valid based on the given format.
- * 
+ *
  * Format: dig://hostname:username/distributionname.dig
- * 
+ *
  * @param {string} connectionString - The connection string to verify.
  * @returns {boolean} - Returns true if the connection string is valid, otherwise false.
  */
 export const verifyConnectionString = (connectionString: string): boolean => {
   // Define the regular expression pattern to match the connection string format
-  const pattern: RegExp = /^dig:\/\/([a-zA-Z0-9.-]+):([a-zA-Z0-9]+)\/([a-zA-Z0-9_-]+)\.dig$/;
+  const pattern: RegExp =
+    /^dig:\/\/([a-zA-Z0-9.-]+):([a-zA-Z0-9]+)\/([a-zA-Z0-9_-]+)\.dig$/;
 
   // Test the connection string against the pattern
   return pattern.test(connectionString);
@@ -84,15 +85,15 @@ export const verifyConnectionString = (connectionString: string): boolean => {
 // Function to prompt for a password
 export const promptPassword = (host: string): Promise<string> => {
   const rl = readline.createInterface({
-      input: process.stdin,
-      output: process.stdout
+    input: process.stdin,
+    output: process.stdout,
   });
 
   return new Promise((resolve) => {
-      rl.question(`Enter your password for ${host}:`, (password) => {
-          rl.close();
-          resolve(password);
-      });
+    rl.question(`Enter your password for ${host}:`, (password) => {
+      rl.close();
+      resolve(password);
+    });
   });
 };
 
@@ -100,20 +101,51 @@ export const promptPassword = (host: string): Promise<string> => {
 export const getFilePathFromSHA256 = (sha256: string): string => {
   const parts = sha256.match(/.{1,2}/g); // Split into chunks of 2 characters
   if (!parts) {
-      throw new Error(`Invalid sha256 hash: ${sha256}`);
+    throw new Error(`Invalid sha256 hash: ${sha256}`);
   }
-  const filePath = path.join('.dig', 'data', ...parts.slice(0, -1), parts[parts.length - 1]);
+  const filePath = path.join(
+    ".dig",
+    "data",
+    ...parts.slice(0, -1),
+    parts[parts.length - 1]
+  );
   return filePath;
 };
 
-export const cleanupOnFailure = async (hostname: string, username: string, distributionName: string, files: FileDetails[], password: string) => {
+export const cleanupOnFailure = async (
+  hostname: string,
+  username: string,
+  distributionName: string,
+  files: FileDetails[],
+  password: string
+) => {
   try {
-      await superagent.delete(`https://${hostname}/upload/${username}/${distributionName}`)
-          .auth(username, password)
-          .send({ username, distributionName, files });
-      console.log('Cleanup completed successfully.');
+    await superagent
+      .delete(`https://${hostname}/upload/${username}/${distributionName}`)
+      .auth(username, password)
+      .send({ username, distributionName, files });
+    console.log("Cleanup completed successfully.");
   } catch (cleanupError) {
-      console.error('Failed to cleanup files:', cleanupError);
+    console.error("Failed to cleanup files:", cleanupError);
   }
-}
+};
 
+// Calculate the total size of the DIG_FOLDER_PATH
+export const calculateFolderSize = (folderPath: string): bigint => {
+  let totalSize = BigInt(0);
+
+  const files = fs.readdirSync(folderPath);
+
+  for (const file of files) {
+    const filePath = path.join(folderPath, file);
+    const stat = fs.statSync(filePath);
+
+    if (stat.isDirectory()) {
+      totalSize += calculateFolderSize(filePath);
+    } else {
+      totalSize += BigInt(stat.size);
+    }
+  }
+
+  return totalSize;
+};

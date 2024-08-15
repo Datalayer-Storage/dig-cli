@@ -12,8 +12,13 @@ export const askForStoreDetails = async (
       type: "input",
       name: "label",
       message: "Enter the label for the data layer store:",
-      validate: (input: any) => input.length > 0 || "Label is required.",
+      validate: (input: string) => input.trim().length > 0 || "Label is required.",
     });
+  } else {
+    // Validate provided label
+    if (inputs.label.trim().length === 0) {
+      throw new Error("Label is required.");
+    }
   }
 
   if (!inputs.description) {
@@ -21,9 +26,14 @@ export const askForStoreDetails = async (
       type: "input",
       name: "description",
       message: "Enter a description for the data layer store (max 50 chars):",
-      validate: (input: any) =>
-        input.length <= 50 || "Description must be 50 characters or less.",
+      validate: (input: string) =>
+        input.trim().length <= 50 || "Description must be 50 characters or less.",
     });
+  } else {
+    // Validate provided description
+    if (inputs.description.trim().length > 50) {
+      throw new Error("Description must be 50 characters or less.");
+    }
   }
 
   if (!inputs.authorizedWriter) {
@@ -44,6 +54,11 @@ export const askForStoreDetails = async (
       filter: (input: any) => parseInt(input, 10),
       validate: (input: any) => !isNaN(input) || "Oracle fee must be a number.",
     });
+  } else {
+    // Validate provided oracle fee
+    if (isNaN(inputs.oracleFee)) {
+      throw new Error("Oracle fee must be a number.");
+    }
   }
 
   const answers = await inquirer.prompt<CreateStoreUserInputs>(questions);

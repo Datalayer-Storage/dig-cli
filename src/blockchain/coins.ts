@@ -1,7 +1,4 @@
-import {
-  selectCoins,
-  Peer,
-} from "datalayer-driver";
+import { selectCoins, Peer, Coin } from "datalayer-driver";
 import { getOwnerPuzzleHash } from "./keys";
 import { MIN_HEIGHT, MIN_HEIGHT_HEADER_HASH } from "../config";
 import { createSpinner } from "nanospinner";
@@ -9,7 +6,7 @@ import { createSpinner } from "nanospinner";
 export const selectUnspentCoins = async (
   peer: Peer,
   feeBigInt: bigint
-): Promise<any> => {
+): Promise<Coin[]> => {
   const ownerPuzzleHash = await getOwnerPuzzleHash();
   const coinsResp = await peer.getAllUnspentCoins(
     ownerPuzzleHash,
@@ -25,29 +22,44 @@ export const selectUnspentCoins = async (
 };
 
 export const waitForConfirmation = async (
-    peer: Peer,
-    coinId: Buffer
-  ): Promise<boolean> => {
-    const spinner = createSpinner("Waiting for confirmation...").start();
-  
-    try {
-      while (true) {
-        const confirmed = await peer.isCoinSpent(
-          coinId,
-          MIN_HEIGHT,
-          Buffer.from(MIN_HEIGHT_HEADER_HASH, "hex")
-        );
-  
-        if (confirmed) {
-          spinner.success({ text: "Coin confirmed!" });
-          return true;
-        }
-  
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+  peer: Peer,
+  parentCoinInfo: Buffer
+): Promise<boolean> => {
+  const spinner = createSpinner("Waiting for confirmation...").start();
+
+  try {
+    while (true) {
+      const confirmed = await peer.isCoinSpent(
+        parentCoinInfo,
+        MIN_HEIGHT,
+        Buffer.from(MIN_HEIGHT_HEADER_HASH, "hex")
+      );
+
+      if (confirmed) {
+        spinner.success({ text: "Coin confirmed!" });
+        return true;
       }
-    } catch (error) {
-      spinner.error({ text: "Error while waiting for confirmation." });
-      throw error;
+
+      await new Promise((resolve) => setTimeout(resolve, 5000));
     }
-  };
-  
+  } catch (error) {
+    spinner.error({ text: "Error while waiting for confirmation." });
+    throw error;
+  }
+};
+
+export const isCoinSpendable = async (
+  peer: Peer,
+  coinId: Buffer
+): Promise<boolean> => {
+  try {
+    const spent = await peer.isCoinSpent(
+      coinId,
+      MIN_HEIGHT,
+      Buffer.from(MIN_HEIGHT_HEADER_HASH, "hex")
+    );
+    return spent;
+  } catch (error) {
+    return false;
+  }
+};

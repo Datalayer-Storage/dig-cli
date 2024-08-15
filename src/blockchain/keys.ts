@@ -6,7 +6,8 @@ import {
   secretKeyToPublicKey,
   masterPublicKeyToWalletSyntheticKey,
   masterSecretKeyToWalletSyntheticSecretKey,
-  masterPublicKeyToFirstPuzzleHash
+  masterPublicKeyToFirstPuzzleHash,
+  puzzleHashToAddress
 } from "datalayer-driver";
 
 export const getMasterSecretKey = async (): Promise<Buffer> => {
@@ -34,3 +35,8 @@ export const getOwnerPuzzleHash = async (): Promise<Buffer> => {
   const master_pk = secretKeyToPublicKey(master_sk);
   return masterPublicKeyToFirstPuzzleHash(master_pk);
 };
+
+export const getOwnerPublicKey = async (): Promise<string> => {
+  const ownerPuzzleHash = await getOwnerPuzzleHash();
+  return puzzleHashToAddress(ownerPuzzleHash, 'mainnet');
+}

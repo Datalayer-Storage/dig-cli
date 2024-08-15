@@ -353,18 +353,19 @@ class DataIntegrityLayer {
    * Commit the current state of the Merkle tree.
    */
   commit(): string {
+    const emptyRootHash = "0000000000000000000000000000000000000000000000000000000000000000";
     const rootHash =
       this.tree.getLeafCount() === 0
-        ? "0000000000000000000000000000000000000000000000000000000000000000"
+        ? emptyRootHash
         : this.getRoot();
 
     const manifest = this._loadManifest();
     const latestRootHash =
       manifest.length > 0 ? manifest[manifest.length - 1] : null;
 
-    if (rootHash === latestRootHash) {
+    if (rootHash === latestRootHash && rootHash !== emptyRootHash) {
       console.log("No changes to commit. Aborting commit.");
-      return rootHash;
+      throw new Error("No changes to commit.");
     }
 
     const manifestPath = path.join(this.storeDir, "manifest.dat");

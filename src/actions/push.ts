@@ -4,21 +4,18 @@ import superagent from "superagent";
 import archiver from "archiver";
 import { PassThrough } from "stream";
 import { promptPassword } from "../utils";
-import { digFolderName, configFileName } from "../config";
+import { DIG_FOLDER_PATH, CONFIG_FILE_PATH } from "../config";
 
 export const push = async (): Promise<void> => {
-  const digDir = path.join(process.cwd(), digFolderName);
-  const configFilePath = path.join(digDir, configFileName);
-
-  if (!fs.existsSync(digDir)) {
+  if (!fs.existsSync(DIG_FOLDER_PATH)) {
     throw new Error(".dig folder not found. Please run init first.");
   }
 
-  if (!fs.existsSync(configFilePath)) {
+  if (!fs.existsSync(CONFIG_FILE_PATH)) {
     throw new Error("Config file not found.");
   }
 
-  const config: { origin: string } = JSON.parse(fs.readFileSync(configFilePath, "utf-8"));
+  const config: { origin: string } = JSON.parse(fs.readFileSync(CONFIG_FILE_PATH, "utf-8"));
 
   if (!config.origin) {
     throw new Error('The "origin" field is not set in the config file.');
@@ -65,7 +62,7 @@ export const push = async (): Promise<void> => {
     archive.on("error", (err) => { throw err; });
 
     archive.pipe(passThroughStream);
-    archive.directory(digDir, false);
+    archive.directory(DIG_FOLDER_PATH, false);
     archive.finalize();
 
     await uploadPromise;

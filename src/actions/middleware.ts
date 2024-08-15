@@ -2,7 +2,11 @@ import path from "path";
 import fs from "fs";
 import { checkStoreOwnership } from "../blockchain/datastore";
 import { Config } from "../types";
-import { digFolderName, configFileName } from "../config";
+import { CONFIG_FILE_PATH, COIN_STATE_FILE_PATH } from "../config";
+import { isCoinSpendable } from "../blockchain/coins";
+import { getPeer } from "../blockchain/peer";
+import { deserializeStoreInfo, getLatestStoreInfo } from "../blockchain/datastore";
+import { getCoinId } from "datalayer-driver";
 
 export const checkStorePermissions = async (): Promise<void> => {
   const storeIsWritable = await checkStoreOwnership();
@@ -12,18 +16,32 @@ export const checkStorePermissions = async (): Promise<void> => {
     );
   }
 };
+export const ensureStoreIsSpendable = async (): Promise<void> => {
+  const peer = await getPeer();
+  const storeInfo = await getLatestStoreInfo();
+  if (storeInfo) {
+    console.log("Checking if Store is spendable:", storeInfo.launcherId.toString("hex"));
+    
+    const isSpendable = await isCoinSpendable(
+      peer,
+      getCoinId(storeInfo.coin)
+    );
+
+    if (!isSpendable) {
+      throw new Error("Store is not spendable. Please wait for confirmation.");
+    }
+
+  }
+};
 
 export const ensureDigFolderIntegrity = async (): Promise<void> => {
-  const digDir = path.join(process.cwd(), digFolderName);
-  const configFilePath = path.join(process.cwd(), configFileName);
-
   // Check if the dig.config.json file exists
-  if (!fs.existsSync(configFilePath)) {
+  if (!fs.existsSync(CONFIG_FILE_PATH)) {
     throw new Error("Config file not found. Please run init first.");
   }
 
   // Load the config
-  const config: Config = JSON.parse(fs.readFileSync(configFilePath, "utf-8"));
+  const config: Config = JSON.parse(fs.readFileSync(CONFIG_FILE_PATH, "utf-8"));
 
   // Check if deploy_dir is set
   if (!config.deploy_dir) {

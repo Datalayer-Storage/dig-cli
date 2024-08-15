@@ -55,7 +55,7 @@ const folderPath = path.resolve(
 ); // Replace with your folder path
 const storeId =
   "782dd222ed9510e709ed700ad89e15e398550acf92e8d8ee285999019ff4873a"; // Replace with your storeId or generate one
-const manager = new DataIntegrityLayer(storeId, {storageMode: 'unified', storeDir: path.join(os.homedir(), ".dig", "stores")});
+const manager = new DataIntegrityLayer(storeId, {storageMode: 'local', storeDir: path.join(os.homedir(), ".dig", "stores")});
 //manager.deleteAllLeaves();
 const currentRoot = manager.getRoot();
 

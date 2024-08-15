@@ -42,7 +42,7 @@ const isHexString = (str: string): boolean => {
   return /^[0-9a-fA-F]+$/.test(str) && str.length % 2 === 0;
 };
 
-interface DataIntegrityLayerOptions {
+export interface DataIntegrityLayerOptions {
   storeDir?: string;
   storageMode?: "local" | "unified";
 }

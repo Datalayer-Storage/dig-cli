@@ -21,3 +21,19 @@ export interface DigConfig {
     deploy_dir: string;
     [key: string]: any;
 }
+
+export interface RootHistoryItem {
+  root_hash: string;
+  timestamp: Number | undefined;
+}
+
+export interface DatFile {
+  root: string;
+  leaves: string[];
+  files: {
+    [key: string]: {
+      hash: string;
+      sha256: string;
+    };
+  };
+}

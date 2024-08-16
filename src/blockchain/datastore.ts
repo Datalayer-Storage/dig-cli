@@ -35,9 +35,12 @@ import {
   MIN_HEIGHT,
   MIN_HEIGHT_HEADER_HASH,
   HEIGHT_FILE_PATH,
-  COIN_STATE_FILE_PATH,
+  DIG_FOLDER_PATH,
+  getManifestFilePath,
 } from "../config";
 import { selectUnspentCoins } from "./coins";
+import { RootHistoryItem, DatFile } from "../types";
+import { validateFileSha256 } from "../utils";
 
 export const mintDataLayerStore = async (
   label?: string,
@@ -245,23 +248,52 @@ export const deserializeStoreInfo = (
 export const getLatestStoreInfo = async (): Promise<DataStoreInfo> => {
   const peer = await getPeer();
 
-  // Define the .dig folder path
-  const digFolderPath = path.resolve(process.cwd(), ".dig");
-
   // Find the folder that has a 64-character hex name
-  const launcherId = findLauncherId(digFolderPath);
+  const launcherId = findLauncherId(DIG_FOLDER_PATH);
 
   if (!launcherId) {
     throw new Error("No valid data store folder found.");
   }
 
   const { latestInfo } = await peer.syncStoreFromLauncherId(
-    Buffer.from(launcherId, 'hex'),
+    Buffer.from(launcherId, "hex"),
     MIN_HEIGHT,
-    Buffer.from(MIN_HEIGHT_HEADER_HASH, "hex")
+    Buffer.from(MIN_HEIGHT_HEADER_HASH, "hex"),
+    false
   );
 
   return latestInfo;
+};
+
+export const getRootHistory = async (
+  launcherId: Buffer
+): Promise<RootHistoryItem[]> => {
+  const peer = await getPeer();
+
+  if (!launcherId) {
+    throw new Error("No valid data store folder found.");
+  }
+
+  const { rootHashes, rootHashesTimestamps } =
+    await peer.syncStoreFromLauncherId(
+      launcherId,
+      MIN_HEIGHT,
+      Buffer.from(MIN_HEIGHT_HEADER_HASH, "hex"),
+      true
+    );
+
+  if (!rootHashes) {
+    return [];
+  }
+
+  const rootHistory: RootHistoryItem[] = rootHashes.map((rootHash, index) => {
+    return {
+      root_hash: rootHash.toString("hex"),
+      timestamp: Number(rootHashesTimestamps?.[index].toString()),
+    };
+  });
+
+  return rootHistory;
 };
 
 /**
@@ -270,7 +302,7 @@ export const getLatestStoreInfo = async (): Promise<DataStoreInfo> => {
  * @param {string} dirPath - The .dig directory path.
  * @returns {string | null} The name of the folder if found, otherwise null.
  */
-const findLauncherId = (dirPath: string): string | null => {
+export const findLauncherId = (dirPath: string): string | null => {
   if (!fs.existsSync(dirPath)) {
     throw new Error(`Directory does not exist: ${dirPath}`);
   }
@@ -279,7 +311,10 @@ const findLauncherId = (dirPath: string): string | null => {
 
   for (const folder of folders) {
     const folderPath = path.join(dirPath, folder);
-    if (fs.lstatSync(folderPath).isDirectory() && /^[a-f0-9]{64}$/.test(folder)) {
+    if (
+      fs.lstatSync(folderPath).isDirectory() &&
+      /^[a-f0-9]{64}$/.test(folder)
+    ) {
       return folder;
     }
   }
@@ -290,54 +325,58 @@ export const checkStoreOwnership = async (): Promise<boolean> => {
   try {
     const peer: Peer = await getPeer();
 
-  const dataStoreInfo = await getLatestStoreInfo();
+    const dataStoreInfo = await getLatestStoreInfo();
 
-  if (!dataStoreInfo) {
-    return true;
-  }
+    if (!dataStoreInfo) {
+      return true;
+    }
 
-  // Load height cache from HEIGHT_FILE_PATH, or use defaults if not found
-  let heightCache = {
-    minHeight: MIN_HEIGHT,
-    minHeightHeaderHash: MIN_HEIGHT_HEADER_HASH,
-  };
-  if (fs.existsSync(HEIGHT_FILE_PATH)) {
-    const fileContent = fs.readFileSync(HEIGHT_FILE_PATH, "utf-8");
-    heightCache = JSON.parse(fileContent);
-  }
+    // Load height cache from HEIGHT_FILE_PATH, or use defaults if not found
+    let heightCache = {
+      minHeight: MIN_HEIGHT,
+      minHeightHeaderHash: MIN_HEIGHT_HEADER_HASH,
+    };
+    if (fs.existsSync(HEIGHT_FILE_PATH)) {
+      const fileContent = fs.readFileSync(HEIGHT_FILE_PATH, "utf-8");
+      heightCache = JSON.parse(fileContent);
+    }
 
-  const minHeight = heightCache.minHeight || MIN_HEIGHT;
-  const minHeightHeaderHash =
-    heightCache.minHeightHeaderHash || MIN_HEIGHT_HEADER_HASH;
+    const minHeight = heightCache.minHeight || MIN_HEIGHT;
+    const minHeightHeaderHash =
+      heightCache.minHeightHeaderHash || MIN_HEIGHT_HEADER_HASH;
 
-  // Sync store information from the blockchain
-  const { latestInfo, latestHeight } = await peer.syncStoreFromLauncherId(
-    dataStoreInfo.launcherId,
-    MIN_HEIGHT,
-    Buffer.from(MIN_HEIGHT_HEADER_HASH, "hex")
-  );
+    // Sync store information from the blockchain
+    const { latestInfo, latestHeight } = await peer.syncStoreFromLauncherId(
+      dataStoreInfo.launcherId,
+      MIN_HEIGHT,
+      Buffer.from(MIN_HEIGHT_HEADER_HASH, "hex"),
+      false
+    );
 
-  const latestHeaderHash = await peer.getHeaderHash(latestHeight);
+    const latestHeaderHash = await peer.getHeaderHash(latestHeight);
 
-  // Save the latest height and header hash to HEIGHT_FILE_PATH
-  const newHeightCache = {
-    minHeight: latestHeight,
-    minHeightHeaderHash: latestHeaderHash.toString("hex"),
-  };
-  fs.writeFileSync(HEIGHT_FILE_PATH, JSON.stringify(newHeightCache, null, 4));
+    // Save the latest height and header hash to HEIGHT_FILE_PATH
+    const newHeightCache = {
+      minHeight: latestHeight,
+      minHeightHeaderHash: latestHeaderHash.toString("hex"),
+    };
+    fs.writeFileSync(HEIGHT_FILE_PATH, JSON.stringify(newHeightCache, null, 4));
 
-  // Get the current owner's puzzle hash
-  const ownerPuzzleHash = await getOwnerPuzzleHash();
+    // Get the current owner's puzzle hash
+    const ownerPuzzleHash = await getOwnerPuzzleHash();
 
-  // Check if the store's owner matches the current owner's puzzle hash
-  return latestInfo.ownerPuzzleHash.equals(ownerPuzzleHash);
+    // Check if the store's owner matches the current owner's puzzle hash
+    return latestInfo.ownerPuzzleHash.equals(ownerPuzzleHash);
   } catch (error) {
     const resetHeightCache = {
       minHeight: MIN_HEIGHT,
       minHeightHeaderHash: MIN_HEIGHT_HEADER_HASH,
     };
 
-    fs.writeFileSync(HEIGHT_FILE_PATH, JSON.stringify(resetHeightCache, null, 4));
+    fs.writeFileSync(
+      HEIGHT_FILE_PATH,
+      JSON.stringify(resetHeightCache, null, 4)
+    );
     return checkStoreOwnership();
   }
 };
@@ -355,12 +394,20 @@ export const meltDataLayerStore = async () => {
     storeInfo,
     Buffer.from(ownerPublicKey, "hex")
   );
-  
+
   const privateKey = await getPrivateSyntheticKey();
   const unspentCoins = await selectUnspentCoins(peer, defaultFee);
-  const feeCoinSpends = await addFee(await getPublicSyntheticKey(), unspentCoins, meltStoreCoinSpends.map(coinSpend => getCoinId(coinSpend.coin)), defaultFee);
-  
-  const combinedCoinSpends = [...meltStoreCoinSpends as CoinSpend[], ...feeCoinSpends as CoinSpend[]];
+  const feeCoinSpends = await addFee(
+    await getPublicSyntheticKey(),
+    unspentCoins,
+    meltStoreCoinSpends.map((coinSpend) => getCoinId(coinSpend.coin)),
+    defaultFee
+  );
+
+  const combinedCoinSpends = [
+    ...(meltStoreCoinSpends as CoinSpend[]),
+    ...(feeCoinSpends as CoinSpend[]),
+  ];
 
   const sig = signCoinSpends(
     combinedCoinSpends,
@@ -434,9 +481,19 @@ export const updateDataStoreMetadata = async ({
 
   const feeBigInt = BigInt(100000000);
   const unspentCoins = await selectUnspentCoins(peer, feeBigInt);
-  const feeCoinSpends = await addFee(ownerPublicKey, unspentCoins, updateStoreResponse.coinSpends.map(coinSpend => getCoinId(coinSpend.coin)), feeBigInt);
+  const feeCoinSpends = await addFee(
+    ownerPublicKey,
+    unspentCoins,
+    updateStoreResponse.coinSpends.map((coinSpend) =>
+      getCoinId(coinSpend.coin)
+    ),
+    feeBigInt
+  );
 
-  const combinedCoinSpends = [...updateStoreResponse.coinSpends as CoinSpend[], ...feeCoinSpends as CoinSpend[]];
+  const combinedCoinSpends = [
+    ...(updateStoreResponse.coinSpends as CoinSpend[]),
+    ...(feeCoinSpends as CoinSpend[]),
+  ];
 
   const sig = signCoinSpends(
     combinedCoinSpends,
@@ -444,14 +501,126 @@ export const updateDataStoreMetadata = async ({
     Buffer.from(NETWORK_AGG_SIG_DATA, "hex")
   );
 
-  const err = await peer.broadcastSpend(
-    combinedCoinSpends,
-    [sig]
-  );
+  const err = await peer.broadcastSpend(combinedCoinSpends, [sig]);
 
   if (err) {
     throw new Error(err);
   }
 
   return updateStoreResponse.newInfo;
+};
+
+export const validateStore = async ({
+  verbose,
+}: {
+  verbose: boolean;
+}): Promise<boolean> => {
+  const launcherId = await findLauncherId(DIG_FOLDER_PATH);
+
+  if (!launcherId) {
+    console.error("No launcher ID found in the current directory");
+    return false;
+  }
+
+  const rootHistory = await getRootHistory(Buffer.from(launcherId, "hex"));
+
+  if (verbose) {
+    console.log(rootHistory);
+  }
+
+  // Load manifest file
+  const manifestFilePath = getManifestFilePath(launcherId);
+  if (!fs.existsSync(manifestFilePath)) {
+    console.error("Manifest file not found");
+    return false;
+  }
+
+  const manifestHashes = fs
+    .readFileSync(manifestFilePath, "utf-8")
+    .split("\n")
+    .filter(Boolean);
+
+  // Check if the manifest file has more hashes than the root history
+  if (manifestHashes.length > rootHistory.length) {
+    console.error(
+      "The store is corrupted: Manifest file has more hashes than the root history."
+    );
+    return false;
+  }
+
+  // Check if the root history has more hashes than the manifest file
+  if (rootHistory.length > manifestHashes.length) {
+    console.error(
+      "The store is not synced: Root history has more hashes than the manifest file."
+    );
+    return false;
+  }
+
+  // Ensure manifest root hashes exist in root history in the same order
+  for (let i = 0; i < manifestHashes.length; i++) {
+    if (manifestHashes[i] !== rootHistory[i]?.root_hash) {
+      console.error(
+        `Root hash mismatch at position ${i}: expected ${manifestHashes[i]} but found ${rootHistory[i]?.root_hash}`
+      );
+      return false;
+    }
+  }
+
+  let filesIntegrityIntact = true;
+  // Validate each root hash
+  for (const rootHash of manifestHashes) {
+    const datFilePath = path.join(
+      DIG_FOLDER_PATH,
+      launcherId,
+      `${rootHash}.dat`
+    );
+
+    if (!fs.existsSync(datFilePath)) {
+      console.error(`Data file for root hash ${rootHash} not found`);
+      return false;
+    }
+
+    const datFileContent = JSON.parse(
+      fs.readFileSync(datFilePath, "utf-8")
+    ) as DatFile;
+
+    if (datFileContent.root !== rootHash) {
+      console.error(
+        `Root hash in data file does not match: ${datFileContent.root} !== ${rootHash}`
+      );
+      return false;
+    }
+
+    // Validate SHA256 hashes of the files
+    for (const [fileKey, fileData] of Object.entries(datFileContent.files)) {
+      const integrityCheck = validateFileSha256(
+        fileData.sha256,
+        path.join(DIG_FOLDER_PATH, launcherId, "data")
+      );
+
+      if (verbose) {
+        console.log(
+          `Key ${fileKey}: SHA256 = ${fileData.sha256}, integrity: ${
+            integrityCheck ? "OK" : "FAILED"
+          }`
+        );
+      }
+
+      if (!integrityCheck) {
+        filesIntegrityIntact = false;
+      }
+    }
+  }
+
+  if (!filesIntegrityIntact) {
+    console.error(`Store Corrupted: Data failed SHA256 validation.`);
+
+    return false;
+  }
+
+  if (verbose) {
+    console.log("Store validation successful.");
+  }
+
+  return true;
 };

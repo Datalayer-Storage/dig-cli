@@ -21,7 +21,7 @@
     "chia-wallet": "^1.0.18",
     "cli-spinners": "^3.1.0",
     "crypto-js": "^4.2.0",
-    "datalayer-driver": "^0.1.10",
+    "datalayer-driver": "^0.1.13",
     "dns": "^0.2.2",
     "ignore": "^5.3.2",
     "inquirer": "^10.1.8",

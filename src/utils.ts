@@ -4,8 +4,10 @@ import * as crypto from "crypto";
 import * as readline from "readline";
 import superagent from "superagent";
 import { DataIntegrityLayer } from "./DataIntegrityLayer";
-import { FileDetails, DigConfig } from "./types";
+import { FileDetails } from "./types";
 import ignore from "ignore";
+import zlib from "zlib";
+import { createSpinner, Spinner } from "nanospinner";
 
 /**
  * Calculate the SHA-256 hash of a buffer using the crypto module.
@@ -112,6 +114,38 @@ export const getFilePathFromSHA256 = (sha256: string): string => {
   return filePath;
 };
 
+/**
+ * Validates if the SHA256 hash of the decompressed file matches the provided hash.
+ *
+ * @param sha256 - The expected SHA256 hash of the decompressed file.
+ * @param dataDir - The root folder where the data files are stored.
+ * @returns A boolean indicating whether the decompressed file's hash matches the provided hash.
+ */
+export const validateFileSha256 = (
+  sha256: string,
+  dataDir: string
+): boolean => {
+  // Derive the file path from the SHA256 hash
+  const filePath = path.join(dataDir, sha256.match(/.{1,2}/g)!.join("/"));
+
+  if (!fs.existsSync(filePath)) {
+    return false;
+  }
+
+  // Read and decompress the file
+  const fileBuffer = fs.readFileSync(filePath);
+  const decompressedBuffer = zlib.gunzipSync(fileBuffer);
+
+  // Calculate the SHA256 hash of the decompressed content
+  const hash = crypto
+    .createHash("sha256")
+    .update(decompressedBuffer)
+    .digest("hex");
+
+  // Compare the calculated hash with the provided hash
+  return hash === sha256;
+};
+
 export const cleanupOnFailure = async (
   hostname: string,
   username: string,
@@ -148,4 +182,27 @@ export const calculateFolderSize = (folderPath: string): bigint => {
   }
 
   return totalSize;
+};
+
+export const waitForPromise = async <T>(
+  promiseFn: () => Promise<T>,
+  spinnerText: string = "Processing...",
+  successText: string = "OK!",
+  errorText: string = "Error."
+): Promise<T> => {
+  const spinner: Spinner = createSpinner(spinnerText).start();
+
+  try {
+    const result = await promiseFn();
+    if (result) {
+      spinner.success({ text: successText });
+    } else {
+      spinner.error({ text: errorText });
+    }
+
+    return result;
+  } catch (error) {
+    spinner.error({ text: errorText });
+    throw error;
+  }
 };

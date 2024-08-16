@@ -1,6 +1,6 @@
 import { getOrCreateMnemonic, deleteMnemonic, getMnemonic, importMnemonic } from "./blockchain/mnemonic";
 import { checkStorePermissions, ensureStoreIsSpendable } from "./actions/middleware";
-import { commit, push, pull, clone, setRemote, init } from "./actions";
+import { commit, push, pull, clone, setRemote, init, validate } from "./actions";
 import { CreateStoreUserInputs } from './types';
 
 // Command handlers
@@ -40,21 +40,41 @@ export const handlers = {
    // await setRemote(connectionString);
     console.log(`Remote set executed with connectionString: ${connectionString}`);
   },
+  validateStore: async () => {
+    await validate();
+    console.log("Store validated");
+  },
+  manageStore: async (action: string) => {
+    switch (action) {
+      case "validate":
+        await validate();
+        break;
+      case "update":
+      //  await upsertStore();
+        break;
+      case "remove":
+       // await removeStore();
+        break;
+      default:
+        console.error("Unknown store action");
+    }
+  },
   manageKeys: async (action: string, providedMnemonic?: string) => {
-    if (action === "import") {
-      const mnemonic = await importMnemonic(providedMnemonic);
-      console.log(`Mnemonic imported: ${mnemonic}`);
-    } else if (action === "generate") {
-      const mnemonic = await getOrCreateMnemonic();
-      console.log(`Mnemonic generated: ${mnemonic}`);
-    } else if (action === "delete") {
-      const result = await deleteMnemonic();
-      console.log(result ? "Mnemonic seed deleted successfully." : "No mnemonic seed found to delete.");
-    } else if (action === "show") {
-      const mnemonic = await getMnemonic();
-      console.log(`Stored mnemonic: ${mnemonic}`);
-    } else {
-      console.error("Unknown keys action");
+    switch (action) {
+      case "import":
+        await importMnemonic(providedMnemonic);
+        break;
+      case "generate":
+        await getOrCreateMnemonic();
+        break;
+      case "delete":
+        await deleteMnemonic();
+        break;
+      case "show":
+        await getMnemonic();
+        break;
+      default:
+        console.error("Unknown keys action");
     }
   },
 };

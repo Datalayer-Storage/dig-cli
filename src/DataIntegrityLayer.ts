@@ -219,7 +219,7 @@ class DataIntegrityLayer {
             this.deleteKey(key);
           }
 
-          console.log(`Successfully inserted key: ${key}`);
+          console.log(`Inserted key: ${key}`);
           this.files.set(key, {
             hash: combinedHash,
             sha256: sha256,

@@ -47,11 +47,16 @@ export async function setupCommands() {
     )
     .command("clone", "Clone a data store", {}, handlers.clone)
     .command(
-      "store upsert",
-      "Upsert a store",
+      "store <action>",
+      "Manage data store",
       // @ts-ignore
       (yargs) => {
         return yargs
+          .positional("action", {
+            describe: "Action to perform on keys",
+            type: "string",
+            choices: ["validate", "update", "remove"],
+          })
           .option("writer", {
             type: "string",
             describe: "Specify an authorized writer for the store",
@@ -65,28 +70,9 @@ export async function setupCommands() {
             describe: "Specify an admin for the store",
           });
       },
-      handlers.upsertStore
-    )
-    .command(
-      "store remove",
-      "Remove a store setting",
-      // @ts-ignore
-      (yargs) => {
-        return yargs
-          .option("writer", {
-            type: "string",
-            describe: "Remove an authorized writer",
-          })
-          .option("oracle_fee", {
-            type: "number",
-            describe: "Remove the oracle fee",
-          })
-          .option("admin", {
-            type: "string",
-            describe: "Remove an admin",
-          });
-      },
-      handlers.removeStore
+      async (argv: { action: string }) => {
+        await handlers.manageStore(argv.action);
+      }
     )
     .command(
       "remote set <connectionString>",

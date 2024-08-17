@@ -142,7 +142,7 @@ export const serializeStoreInfo = (storeInfo: DataStoreInfo): any => {
       rootHash: storeInfo.metadata.rootHash.toString("hex"),
       label: storeInfo.metadata.label,
       description: storeInfo.metadata.description,
-      size: storeInfo.metadata.size?.toString(),
+      bytes: storeInfo.metadata.bytes?.toString(),
     },
     ownerPuzzleHash: storeInfo.ownerPuzzleHash.toString("hex"),
     delegatedPuzzles: storeInfo.delegatedPuzzles.map((puzzle) => ({
@@ -205,7 +205,7 @@ export const deserializeStoreInfo = (
     rootHash: Buffer.from(data.metadata.rootHash, "hex"),
     label: data.metadata.label,
     description: data.metadata.description,
-    size: data.metadata.size ? BigInt(data.metadata.size) : undefined,
+    bytes: data.metadata.bytes ? BigInt(data.metadata.bytes) : undefined,
   };
 
   const delegatedPuzzles: DelegatedPuzzle[] = data.delegatedPuzzles.map(
@@ -293,7 +293,8 @@ export const getRootHistory = async (
     };
   });
 
-  return rootHistory;
+  // hack until fixed in datalayer-driver
+  return [{root_hash: '0000000000000000000000000000000000000000000000000000000000000000', timestamp: 0}, ...rootHistory];
 };
 
 /**
@@ -460,7 +461,7 @@ export const updateDataStoreMetadata = async ({
   rootHash,
   label,
   description,
-  size,
+  bytes,
 }: DataStoreMetadata) => {
   const storeInfo = await getLatestStoreInfo();
 
@@ -473,7 +474,7 @@ export const updateDataStoreMetadata = async ({
     rootHash,
     label,
     description,
-    size,
+    bytes,
     ownerPublicKey,
     null,
     null

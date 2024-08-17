@@ -2,7 +2,7 @@ import path from "path";
 import os from "os";
 import fs from "fs";
 import { Peer } from "datalayer-driver";
-import { Tls } from "chia-server-coin";
+import { Tls, Peer as ServerCoinPeer } from "chia-server-coin";
 import { resolve4 } from "dns/promises";
 import net from "net";
 import { memoize } from "lodash";
@@ -12,7 +12,11 @@ const LOCALHOST = "127.0.0.1";
 const DNS_HOST = "dns-introducer.chia.net";
 const CONNECTION_TIMEOUT = 2000;
 
-const isPortReachable = (host: string, port: number, timeout = CONNECTION_TIMEOUT): Promise<boolean> =>
+const isPortReachable = (
+  host: string,
+  port: number,
+  timeout = CONNECTION_TIMEOUT
+): Promise<boolean> =>
   new Promise((resolve) => {
     const socket = new net.Socket()
       .setTimeout(timeout)
@@ -24,44 +28,59 @@ const isPortReachable = (host: string, port: number, timeout = CONNECTION_TIMEOU
       });
   });
 
-const fetchNewPeerIP = async (): Promise<string> => {
-  // Always check localhost first
-  if (await isPortReachable(LOCALHOST, FULLNODE_PORT)) {
-    console.log(`Using local Fullnode: ${LOCALHOST} (reachable on port ${FULLNODE_PORT})`);
-    return LOCALHOST;
-  }
-
-  // If localhost is not reachable, proceed with DNS resolution
+const fetchNewPeerIPs = async (): Promise<string[]> => {
+  // Fetch DNS IPs
   const ips = await resolve4(DNS_HOST);
-  if (ips.length === 0) throw new Error("No IPs found in DNS records.");
+  if (!ips || ips.length === 0) throw new Error("No IPs found in DNS records.");
 
   const shuffledIps = ips.sort(() => 0.5 - Math.random());
+  const reachableIps: string[] = [];
+
+  if (await isPortReachable(LOCALHOST, FULLNODE_PORT)) {
+    console.log(`Connecting to Peer: ${LOCALHOST} (reachable on port ${FULLNODE_PORT})`);
+    reachableIps.push(LOCALHOST);
+  }
 
   for (const ip of shuffledIps) {
     if (await isPortReachable(ip, FULLNODE_PORT)) {
-      console.log(`Chosen Fullnode: ${ip} (reachable on port ${FULLNODE_PORT})`);
-      return ip;
+      console.log(`Connecting to Peer: ${ip} (reachable on port ${FULLNODE_PORT})`);
+      reachableIps.push(ip);
     }
+    if (reachableIps.length === 5) break; // Stop after finding 5 reachable IPs
   }
 
-  throw new Error("No reachable IPs found in DNS records.");
+  if (reachableIps.length === 0) {
+    throw new Error("No reachable IPs found in DNS records.");
+  }
+
+  return reachableIps;
 };
 
-const memoizedFetchNewPeerIP = memoize(fetchNewPeerIP);
+const memoizedFetchNewPeerIPs = memoize(fetchNewPeerIPs);
 
-const getPeerIP = async (): Promise<string> => {
-  let ip = await memoizedFetchNewPeerIP();
+const getPeerIPs = async (): Promise<string[]> => {
+  const ips = await memoizedFetchNewPeerIPs();
 
-  if (await isPortReachable(ip, FULLNODE_PORT)) {
-    return ip;
+  // Re-check all the memoized IPs to ensure they're still reachable
+  const reachableIps = await Promise.all(
+    ips.map(async (ip) => {
+      if (ip && (await isPortReachable(ip, FULLNODE_PORT))) {
+        return ip;
+      }
+      return null;
+    })
+  ).then((results) => results.filter((ip) => ip !== null) as string[]);
+
+  if (reachableIps.length > 0) {
+    return reachableIps;
   }
 
-  console.log(`Memoized IP ${ip} is not reachable. Fetching a new IP...`);
-  if (memoizedFetchNewPeerIP?.cache?.clear) {
-    memoizedFetchNewPeerIP.cache.clear();
+  console.log(`Memoized IPs are not reachable. Fetching new IPs...`);
+  if (memoizedFetchNewPeerIPs?.cache?.clear) {
+    memoizedFetchNewPeerIPs.cache.clear();
   }
 
-  return memoizedFetchNewPeerIP();
+  return memoizedFetchNewPeerIPs();
 };
 
 export const getPeer = async (): Promise<Peer> => {
@@ -75,6 +94,79 @@ export const getPeer = async (): Promise<Peer> => {
 
   new Tls(certFile, keyFile);
 
-  const host = await getPeerIP();
-  return Peer.new(`${host}:${FULLNODE_PORT}`, "mainnet", certFile, keyFile);
+  const peerIPs = await getPeerIPs();
+  const peers = await Promise.all(
+    peerIPs.map(async (ip) => {
+      if (ip) {
+        try {
+          return await Peer.new(`${ip}:${FULLNODE_PORT}`, "mainnet", certFile, keyFile);
+        } catch (error: any) {
+          console.error(`Failed to create peer for IP ${ip}: ${error.message}`);
+          return null;
+        }
+      }
+      return null;
+    })
+  ).then((results) => results.filter((peer) => peer !== null) as Peer[]);
+
+  if (peers.length === 0) {
+    throw new Error("No peers available found, please try again.");
+  }
+
+  // Give the peers a second to report their peak heights
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+
+  const peakHeights = await Promise.all(
+    peers.map((peer) =>
+      peer
+        .getPeak()
+        .then((height) => height)
+        .catch((error) => {
+          console.error(`Failed to get peak for peer: ${error.message}`);
+          return null;
+        })
+    )
+  );
+
+  const validHeights = peakHeights.filter((height) => height !== null) as number[];
+
+  if (validHeights.length === 0) {
+    throw new Error("No valid peak heights obtained from any peer.");
+  }
+
+  let highestPeak = Math.max(...validHeights);
+  let bestPeerIndex = validHeights.findIndex((height, idx) =>
+    peerIPs[idx] === LOCALHOST && height === highestPeak ? true : height === highestPeak
+  );
+
+  const bestPeerIP = peerIPs[bestPeerIndex];
+  console.log(`Selected Peer IP: ${bestPeerIP}`);
+
+  return peers[bestPeerIndex];
+};
+
+export const getServerCoinPeer = async (): Promise<ServerCoinPeer> => {
+  const sslFolder = path.resolve(os.homedir(), ".dig", "ssl");
+  const certFile = path.join(sslFolder, "public_dig.crt");
+  const keyFile = path.join(sslFolder, "public_dig.key");
+
+  if (!fs.existsSync(sslFolder)) {
+    fs.mkdirSync(sslFolder, { recursive: true });
+  }
+
+  const tls = new Tls(certFile, keyFile);
+
+  try {
+    const hosts = await getPeerIPs();
+
+    return ServerCoinPeer.connect(
+      `${hosts[0]}:${FULLNODE_PORT}`,
+      "mainnet",
+      tls
+    );
+  } catch (error: any) {
+    console.error(`Failed get valid peer for ServerCoin: ${error.message}`);
+    console.log("trying again...");
+    return getServerCoinPeer();
+  }
 };

@@ -5,6 +5,8 @@ import archiver from "archiver";
 import { PassThrough } from "stream";
 import { promptPassword } from "../utils";
 import { DIG_FOLDER_PATH, CONFIG_FILE_PATH } from "../config";
+import { doesHostExistInMirrors, createServerCoin} from '../blockchain/server_coin';
+import { createStoreAuthorizationSig } from "../blockchain/signature";
 
 export const push = async (): Promise<void> => {
   if (!fs.existsSync(DIG_FOLDER_PATH)) {
@@ -21,18 +23,21 @@ export const push = async (): Promise<void> => {
     throw new Error('The "origin" field is not set in the config file.');
   }
 
-  const [, hostname, username, deploymentName] =
+  const [, hostname, username, storeId] =
     config.origin.match(
       /^dig@([a-zA-Z0-9.-]+):([a-zA-Z0-9]+)\/([a-zA-Z0-9_-]+)\.dig$/
     ) || [];
 
   const password = await promptPassword(hostname);
 
+  let userNonce, lastUploadedHash;
+
   try {
     const headResponse = await superagent
-      .head(`https://${hostname}/upload/${username}/${deploymentName}`)
+      .head(`https://${hostname}/upload/${storeId}`)
       .auth(username, password);
-    const lastUploadedHash = headResponse.headers["x-last-uploaded-hash"];
+    lastUploadedHash = headResponse.headers["x-last-uploaded-hash"];
+    userNonce = headResponse.headers["x-nonce"];
     console.log(`Last uploaded hash: ${lastUploadedHash}`);
   } catch (error) {
     console.error("Failed to get the last uploaded hash:", error);
@@ -41,10 +46,15 @@ export const push = async (): Promise<void> => {
 
   let uploadUrl;
   try {
+    const storeAuthorizationSig = await createStoreAuthorizationSig(storeId, userNonce);
+
     const postResponse = await superagent
-      .post(`https://${hostname}/upload/${username}/${deploymentName}`)
+      .post(`https://${hostname}/upload/${username}/${storeId}`)
       .auth(username, password)
-      .send({ username, deploymentName, filename: `${deploymentName}.dig` });
+      .send({ 
+        storeId,
+        authorization_sig: storeAuthorizationSig,
+      });
     uploadUrl = postResponse.body.uploadUrl;
   } catch (error) {
     console.error("Failed to get signed URL for upload:", error);
@@ -65,8 +75,15 @@ export const push = async (): Promise<void> => {
     archive.directory(DIG_FOLDER_PATH, false);
     archive.finalize();
 
+    // Check server coin to make sure there is a coin with the origin on it, if not create it
+    const serverCoinExistsForOrigin = await doesHostExistInMirrors(storeId, `https://${hostname}`);
+    if (!serverCoinExistsForOrigin) {
+      console.log(`Creating server coin for ${hostname}`);
+      await createServerCoin(storeId, [`https://${hostname}`]);
+    }
+
     await uploadPromise;
-    console.log(`Uploaded ${deploymentName}.dig to ${hostname}`);
+    console.log(`Uploaded ${storeId}.dig to ${hostname}`);
   } catch (error) {
 
   }

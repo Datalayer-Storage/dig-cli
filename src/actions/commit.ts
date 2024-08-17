@@ -51,7 +51,13 @@ export const commit = async (): Promise<void> => {
     const datalayer = new DataIntegrityLayer(storeId, {
       storageMode: "local",
       storeDir: DIG_FOLDER_PATH,
+      disableInitialize: true,
     });
+
+    // When doing file based inserts, we want the tree to be an exact replica of the build directory
+    // regardless of what was previously in the tree, so we are zeroing it out first before we add a new generation
+    datalayer.deleteAllLeaves();
+
     const digConfig = await loadDigConfig(process.cwd());
 
     await addDirectory(
@@ -61,15 +67,15 @@ export const commit = async (): Promise<void> => {
 
     const newRootHash = datalayer.commit();
 
-    const totalSize = calculateFolderSize(DIG_FOLDER_PATH);
+    const totalBytes = calculateFolderSize(DIG_FOLDER_PATH);
 
     console.log(
-      `Updating store metadata with new root hash: ${newRootHash}, bytes: ${totalSize}`
+      `Updating store metadata with new root hash: ${newRootHash}, bytes: ${totalBytes}`
     );
 
     const updatedStoreInfo = await updateDataStoreMetadata({
       rootHash: Buffer.from(newRootHash, "hex"),
-      size: totalSize,
+      bytes: totalBytes,
     });
 
     const peer = await getPeer();
@@ -120,7 +126,7 @@ const catchUpWithManifest = async (
       console.log(`Committing root hash: ${rootHash}`);
       const updatedStoreInfo = await updateDataStoreMetadata({
         rootHash: Buffer.from(rootHash, "hex"),
-        size: calculateFolderSize(DIG_FOLDER_PATH),
+        bytes: calculateFolderSize(DIG_FOLDER_PATH),
       });
 
       await waitForConfirmation(peer, updatedStoreInfo.coin.parentCoinInfo);

@@ -45,6 +45,9 @@ const isHexString = (str: string): boolean => {
 export interface DataIntegrityLayerOptions {
   storeDir?: string;
   storageMode?: "local" | "unified";
+  // This is a hack to prevent an empty root hash from
+  // being commited in the constructor when the tree is empty
+  disableInitialize?: boolean
 }
 
 /**
@@ -89,7 +92,7 @@ class DataIntegrityLayer {
     this.tree = this._loadLatestTree();
 
     // Commit the empty Merkle tree immediately upon creation
-    if (this.tree.getLeafCount() === 0) {
+    if (!options.disableInitialize && this.tree.getLeafCount() === 0) {
       this.commit();
     }
   }
@@ -375,7 +378,11 @@ class DataIntegrityLayer {
     if (!fs.existsSync(path.dirname(treeFilePath))) {
       fs.mkdirSync(path.dirname(treeFilePath), { recursive: true });
     }
-    fs.writeFileSync(treeFilePath, JSON.stringify(this.serialize()));
+    const serializedTree = this.serialize() as { root: string; leaves: string[]; files: object };
+    if (rootHash === emptyRootHash) {
+      serializedTree.root = emptyRootHash;
+    }
+    fs.writeFileSync(treeFilePath, JSON.stringify(serializedTree));
 
     console.log(`Committed new root`);
     console.log(this.tree.toString());

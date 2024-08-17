@@ -24,6 +24,12 @@ export const init = async (inputs: CreateStoreUserInputs = {}): Promise<void> =>
   // Re-create the .dig directory
   fs.mkdirSync(DIG_FOLDER_PATH);
 
+  if (!fs.existsSync(path.join(process.cwd(), 'dig.config.json'))) {
+    const initialConfig = { deploy_dir: "./dist", origin: "" };
+    fs.writeFileSync(path.join(process.cwd(), 'dig.config.json'), JSON.stringify(initialConfig, null, 4));
+    console.log("Created dig.config.json file.");
+  }
+
   const storeInfo = await createDataLayerStore(inputs);
   if (storeInfo) {
     const storeId = storeInfo.launcherId.toString("hex");

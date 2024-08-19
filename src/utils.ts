@@ -2,9 +2,10 @@ import * as fs from "fs";
 import * as path from "path";
 import * as crypto from "crypto";
 import * as readline from "readline";
+import keytar from "keytar";
 import superagent from "superagent";
 import { DataIntegrityLayer } from "./DataIntegrityLayer";
-import { FileDetails } from "./types";
+import { FileDetails, Credentials } from "./types";
 import ignore from "ignore";
 import zlib from "zlib";
 import { createSpinner, Spinner } from "nanospinner";
@@ -84,19 +85,43 @@ export const verifyConnectionString = (connectionString: string): boolean => {
   return pattern.test(connectionString);
 };
 
-// Function to prompt for a password
-export const promptPassword = (host: string): Promise<string> => {
+// Function to prompt for username and password
+export const promptCredentials = async (host: string): Promise<Credentials> => {
+  // Check if credentials are already stored in keytar
+  const storedUsername = await keytar.getPassword(host, "username");
+  const storedPassword = await keytar.getPassword(host, "password");
+
+  if (storedUsername && storedPassword) {
+    console.log(`Using stored credentials for ${host}`);
+    return { username: storedUsername, password: storedPassword };
+  }
+
+  // If not stored, prompt the user for credentials
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
   });
 
-  return new Promise((resolve) => {
-    rl.question(`Enter your password for ${host}:`, (password) => {
-      rl.close();
-      resolve(password);
-    });
-  });
+  const askQuestion = (question: string): Promise<string> =>
+    new Promise((resolve) => rl.question(question, resolve));
+
+  const username = await askQuestion(`Enter your username for ${host}: `);
+  const password = await askQuestion(`Enter your password for ${host}: `);
+
+  // Ask if the user wants to store the credentials
+  const storeCredentials = await askQuestion(
+    `Would you like to store these credentials for later use? (y/n): `
+  );
+
+  rl.close();
+
+  if (storeCredentials.toLowerCase() === "y") {
+    await keytar.setPassword(host, "username", username);
+    await keytar.setPassword(host, "password", password);
+    console.log("Credentials stored securely.");
+  }
+
+  return { username, password };
 };
 
 // Function to generate file paths based on SHA-256 hashes
@@ -192,6 +217,10 @@ export const waitForPromise = async <T>(
 ): Promise<T> => {
   const spinner: Spinner = createSpinner(spinnerText).start();
 
+  // Disable console.log while the spinner is active
+  const originalConsoleLog = console.log;
+  console.log = () => {};
+
   try {
     const result = await promiseFn();
     if (result) {
@@ -204,5 +233,241 @@ export const waitForPromise = async <T>(
   } catch (error) {
     spinner.error({ text: errorText });
     throw error;
+  } finally {
+    // Restore the original console.log function
+    console.log = originalConsoleLog;
   }
+};
+
+// Helper function to log API requests and responses if DIG_DEBUG is enabled
+export const logApiRequest = async (request: superagent.SuperAgentRequest) => {
+  if (process.env.DIG_DEBUG === "1") {
+    console.group("API Request");
+
+    console.log(
+      `%cMethod: %c${request.method.toUpperCase()}`,
+      "font-weight: bold;",
+      "color: cyan;"
+    );
+    console.log(
+      `%cURL: %c${request.url}`,
+      "font-weight: bold;",
+      "color: cyan;"
+    );
+
+    // @ts-ignore
+    if (request.header) {
+      console.groupCollapsed("%cHeaders", "font-weight: bold;");
+      // @ts-ignore
+      console.table(request.header);
+      console.groupEnd();
+    }
+
+    // @ts-ignore
+    if (request._data) {
+      console.groupCollapsed("%cBody", "font-weight: bold;");
+      // @ts-ignore
+      const requestBody = JSON.parse(JSON.stringify(request._data));
+      if (typeof requestBody === "object" && requestBody !== null) {
+        for (const [key, value] of Object.entries(requestBody)) {
+          console.groupCollapsed(
+            `%c${key}`,
+            "font-weight: bold; border: 1px solid #ccc; padding: 2px;"
+          );
+          if (Array.isArray(value) || typeof value === "object") {
+            console.table(value);
+          } else {
+            console.log(`%c${value}`, "border: 1px solid #ccc; padding: 2px;");
+          }
+          console.groupEnd();
+        }
+      } else {
+        console.log(
+          `%c${requestBody}`,
+          "border: 1px solid #ccc; padding: 2px;"
+        );
+      }
+      console.groupEnd();
+    }
+
+    console.groupEnd();
+
+    try {
+      const response = await request;
+
+      console.group("API Response");
+
+      console.log(
+        `%cStatus: %c${response.status} ${response.statusCode}`,
+        "font-weight: bold;",
+        "color: green;"
+      );
+      console.groupCollapsed(
+        "%cHeaders",
+        "font-weight: bold; border: 1px solid #ccc; padding: 2px;"
+      );
+      console.table(response.headers);
+      console.groupEnd();
+
+      console.groupCollapsed("%cBody", "font-weight: bold;");
+      const responseBody = response.body;
+      if (typeof responseBody === "object" && responseBody !== null) {
+        for (const [key, value] of Object.entries(responseBody)) {
+          console.groupCollapsed(
+            `%c${key}`,
+            "font-weight: bold; border: 1px solid #ccc; padding: 2px;"
+          );
+          if (Array.isArray(value) || typeof value === "object") {
+            console.table(value);
+          } else {
+            console.log(`%c${value}`, "border: 1px solid #ccc; padding: 2px;");
+          }
+          console.groupEnd();
+        }
+      } else {
+        console.log(
+          `%c${responseBody}`,
+          "border: 1px solid #ccc; padding: 2px;"
+        );
+      }
+      console.groupEnd();
+
+      console.groupEnd();
+
+      return response;
+    } catch (error: any) {
+      console.group("API Response");
+
+      if (error.response) {
+        console.log(
+          `%cStatus: %c${error.response.status} ${error.response.statusText}`,
+          "font-weight: bold;",
+          "color: red;"
+        );
+        console.groupCollapsed(
+          "%cHeaders",
+          "font-weight: bold; border: 1px solid #ccc; padding: 2px;"
+        );
+        console.table(error.response.headers);
+        console.groupEnd();
+
+        console.groupCollapsed("%cBody", "font-weight: bold;");
+        const errorBody = error.response.body;
+        if (typeof errorBody === "object" && errorBody !== null) {
+          for (const [key, value] of Object.entries(errorBody)) {
+            console.groupCollapsed(
+              `%c${key}`,
+              "font-weight: bold; border: 1px solid #ccc; padding: 2px;"
+            );
+            if (Array.isArray(value) || typeof value === "object") {
+              console.table(value);
+            } else {
+              console.log(
+                `%c${value}`,
+                "border: 1px solid #ccc; padding: 2px;"
+              );
+            }
+            console.groupEnd();
+          }
+        } else {
+          console.log(
+            `%c${errorBody}`,
+            "border: 1px solid #ccc; padding: 2px;"
+          );
+        }
+        console.groupEnd();
+      } else {
+        console.error(`Request failed: ${error.message}`);
+      }
+
+      console.groupEnd();
+
+      throw error;
+    }
+  } else {
+    return request;
+  }
+};
+
+export const getDeltaFiles = async (
+  storeId: string,
+  generationIndex: number = 0,
+  directoryPath: string
+): Promise<string[]> => {
+  if (isNaN(generationIndex)) {
+    generationIndex = 0;
+  }
+
+  // Load manifest file
+  const manifestFilePath = path.join(directoryPath, storeId, "manifest.dat");
+  if (!fs.existsSync(manifestFilePath)) {
+    console.error("Manifest file not found");
+    return [];
+  }
+
+  const manifestHashes = fs
+    .readFileSync(manifestFilePath, "utf-8")
+    .split("\n")
+    .filter(Boolean);
+
+  console.log(`Uploading delta from generation ${generationIndex}`);
+
+  const filesInvolved: string[] = [];
+
+  // Include the manifest file
+  filesInvolved.push(manifestFilePath);
+
+  // Include the height.dat file at the top of the directory
+  const heightDatFilePath = path.join(directoryPath, storeId, "height.dat");
+  if (fs.existsSync(heightDatFilePath)) {
+    filesInvolved.push(heightDatFilePath);
+  }
+
+  // Collect files starting from generationIndex + 1
+  for (let i = generationIndex; i < manifestHashes.length; i++) {
+    const rootHash = manifestHashes[i];
+
+    const datFilePath = path.join(directoryPath, storeId, `${rootHash}.dat`);
+
+    if (!fs.existsSync(datFilePath)) {
+      console.error(`Data file for root hash ${rootHash} not found`);
+      return [];
+    }
+
+    const datFileContent = JSON.parse(fs.readFileSync(datFilePath, "utf-8"));
+
+    if (datFileContent.root !== rootHash) {
+      console.error(
+        `Root hash in data file does not match: ${datFileContent.root} !== ${rootHash}`
+      );
+      return [];
+    }
+
+    // Add the .dat file itself to the list of files involved
+    filesInvolved.push(datFilePath);
+
+    // Collect all files involved, ensuring correct paths
+    for (const sha256 of Object.keys(datFileContent.files)) {
+      const filePath = getFilePathFromSha256(
+        sha256,
+        path.join(directoryPath, storeId, "data")
+      );
+      filesInvolved.push(filePath);
+    }
+  }
+
+  if (process.env.DIG_DEBUG === "1") {
+    console.log("Files involved in the delta:");
+    console.table(filesInvolved);
+  }
+
+  return filesInvolved;
+};
+
+// Helper function to derive file path from SHA256 hash
+export const getFilePathFromSha256 = (
+  sha256: string,
+  dataDir: string
+): string => {
+  return path.join(dataDir, sha256.match(/.{1,2}/g)!.join("/"));
 };

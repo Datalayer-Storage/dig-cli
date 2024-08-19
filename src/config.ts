@@ -10,10 +10,10 @@ export const MIN_HEIGHT_HEADER_HASH =
   "b29a4daac2434fd17a36e15ba1aac5d65012d4a66f99bed0bf2b5342e92e562c";
 
 export const DIG_FOLDER_PATH = path.join(process.cwd(), '.dig');
-export const HEIGHT_FILE_PATH = path.join(DIG_FOLDER_PATH, 'height.dat');
 export const COIN_STATE_FILE_PATH = path.join(DIG_FOLDER_PATH, 'coin_state.dat');
 export const CONFIG_FILE_PATH = path.join(process.cwd(), 'dig.config.json');
 export const getManifestFilePath = (storeId: string): string => path.join(DIG_FOLDER_PATH, storeId, 'manifest.dat');
+export const getHeightFilePath = (storeId: string): string => path.join(DIG_FOLDER_PATH, storeId, 'height.dat');
 
 
   /**

@@ -13,7 +13,11 @@ const getWallet = async (peer: Peer): Promise<Wallet> => {
   if (!mnemonic) {
     throw new Error("Mnemonic not found");
   }
-  return Wallet.initialSync(peer, mnemonic, Buffer.from(NETWORK_AGG_SIG_DATA, "hex"));
+  return Wallet.initialSync(
+    peer,
+    mnemonic,
+    Buffer.from(NETWORK_AGG_SIG_DATA, "hex")
+  );
 };
 
 export const createServerCoin = async (
@@ -23,14 +27,13 @@ export const createServerCoin = async (
 ) => {
   const peer = await getServerCoinPeer();
   const wallet = await getWallet(peer);
+  console.log("Creating server coin", launcherId, urls, amount);
 
-  console.log(
-    await wallet.createServerCoin(
-      stringToUint8Array(launcherId),
-      amount,
-      300_000_000,
-      urls
-    )
+  await wallet.createServerCoin(
+    Buffer.from(launcherId, "hex"),
+    amount,
+    300_000_000,
+    urls
   );
 };
 
@@ -98,9 +101,14 @@ export const getServerCoinsByLauncherId = async (launcherId: String) => {
   return serverInfo;
 };
 
-export const doesHostExistInMirrors = async (launcherId: string, host: string) => {
+export const doesHostExistInMirrors = async (
+  launcherId: string,
+  host: string
+) => {
   const mirrors = await getServerCoinsByLauncherId(launcherId);
-  return mirrors.some(server =>
-    server.urls.some(url => url === host)
-  );
-}
+
+  if (process.env.DIG_DEBUG === "1") {
+    console.log("Mirrors", mirrors);
+  }
+  return mirrors.some((server) => server.urls.some((url) => url === host));
+};

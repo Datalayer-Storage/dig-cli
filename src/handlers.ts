@@ -1,5 +1,4 @@
 import { getOrCreateMnemonic, deleteMnemonic, getMnemonic, importMnemonic } from "./blockchain/mnemonic";
-import { checkStorePermissions, ensureStoreIsSpendable } from "./actions/middleware";
 import { commit, push, pull, clone, setRemote, init, validate } from "./actions";
 import { CreateStoreUserInputs } from './types';
 
@@ -12,15 +11,12 @@ export const handlers = {
    // await checkStorePermissions();
    // await ensureStoreIsSpendable();
     await commit();
-    console.log("Commit command executed");
   },
   push: async () => {
-    await checkStorePermissions();
     await push();
     console.log("Push command executed");
   },
   pull: async () => {
-    await checkStorePermissions();
     await pull();
     console.log("Pull command executed");
   },
@@ -71,7 +67,7 @@ export const handlers = {
         await deleteMnemonic();
         break;
       case "show":
-        await getMnemonic();
+        console.log(await getMnemonic());
         break;
       default:
         console.error("Unknown keys action");

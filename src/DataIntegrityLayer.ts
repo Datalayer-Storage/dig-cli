@@ -444,8 +444,6 @@ class DataIntegrityLayer {
   deleteAllLeaves(): void {
     this.files.clear();
     this._rebuildTree();
-    console.log("All leaves have been deleted from the Merkle tree.");
-    console.log(this.tree.toString());
   }
 
   /**

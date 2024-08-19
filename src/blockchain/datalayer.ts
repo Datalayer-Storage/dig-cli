@@ -1,9 +1,10 @@
-import { askForStoreDetails } from '../prompts';
-import { mintDataLayerStore } from './datastore';
-import { waitForConfirmation } from './coins';
-import { getPeer } from './peer';
-import { getCoinId } from 'datalayer-driver';
-import { CreateStoreUserInputs } from '../types';
+import fs from "fs";
+import { askForStoreDetails } from "../prompts";
+import { mintDataLayerStore } from "./datastore";
+import { waitForConfirmation } from "./coins";
+import { getPeer } from "./peer";
+import { getCoinId } from "datalayer-driver";
+import { CreateStoreUserInputs } from "../types";
 
 export async function createDataLayerStore(inputs: CreateStoreUserInputs = {}) {
   const finalInputs = await askForStoreDetails(inputs);
@@ -16,12 +17,13 @@ export async function createDataLayerStore(inputs: CreateStoreUserInputs = {}) {
       finalInputs.authorizedWriter
     );
 
-    console.log('Store Created Successfully, Waiting on Confirmation');
-    console.log(`Store ID: ${newStoreCoin.launcherId.toString('hex')}`);
+    console.log("Store submitted to mempool");
+    console.log(`Store ID: ${newStoreCoin.launcherId.toString("hex")}`);
 
     try {
       const peer = await getPeer();
-      console.log(`Coin ID: ${getCoinId(newStoreCoin.coin).toString('hex')}`);
+
+      console.log(`Coin ID: ${getCoinId(newStoreCoin.coin).toString("hex")}`);
       await waitForConfirmation(peer, newStoreCoin.coin.parentCoinInfo);
     } catch (error: any) {
       console.error(error.message);
@@ -29,6 +31,6 @@ export async function createDataLayerStore(inputs: CreateStoreUserInputs = {}) {
 
     return newStoreCoin;
   } catch (error) {
-    console.error('Failed to mint Data Layer Store:', error);
+    console.error("Failed to mint Data Layer Store:", error);
   }
 }

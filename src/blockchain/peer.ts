@@ -140,8 +140,10 @@ export const getPeer = async (): Promise<Peer> => {
   );
 
   const bestPeerIP = peerIPs[bestPeerIndex];
-  console.log(`Selected Peer IP: ${bestPeerIP}`);
-
+  if (process.env.DIG_DEBUG === "1") {
+    console.log(`Selected Peer IP: ${bestPeerIP}`);
+  }
+  
   return peers[bestPeerIndex];
 };
 

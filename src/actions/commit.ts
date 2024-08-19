@@ -20,7 +20,7 @@ import { getPeer } from "../blockchain/peer";
 export const commit = async (): Promise<void> => {
   try {
     let storeIntegrityCheck = await waitForPromise(
-      () => validateStore({ verbose: false }),
+      () => validateStore(),
       "Checking store integrity...",
       "Store integrity check passed.",
       "Store integrity check failed."
@@ -82,11 +82,12 @@ export const commit = async (): Promise<void> => {
 
     await waitForConfirmation(peer, updatedStoreInfo.coin.parentCoinInfo);
     storeIntegrityCheck = await waitForPromise(
-      () => validateStore({ verbose: false }),
+      () => validateStore(),
       "Checking store integrity...",
       "Store integrity check passed.",
       "Store integrity check failed."
     );
+    
     if (!storeIntegrityCheck) {
       throw new Error("Store integrity check failed.");
     }

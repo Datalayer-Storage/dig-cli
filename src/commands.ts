@@ -3,12 +3,14 @@ import { hideBin } from "yargs/helpers";
 import { handlers } from "./handlers";
 import { ensureDigConfig } from "./config";
 import { CreateStoreUserInputs } from './types';
+import { checkStoreWritePermissions } from "./actions/middleware";
 
 // Configure and run Yargs
 export async function setupCommands() {
   await yargs(hideBin(process.argv))
     .middleware(async () => {
       ensureDigConfig(process.cwd());
+      await checkStoreWritePermissions();
     })
     .command(
       "init",
@@ -100,7 +102,7 @@ export async function setupCommands() {
           .option("mnemonic", {
             type: "string",
             describe: "Mnemonic seed phrase for import (only for 'import' action)",
-            demandOption: (argv: any) => argv.action === "import",
+           // demandOption: (argv: any) => argv.action === "import",
             implies: "action",
           });
       },

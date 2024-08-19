@@ -1,36 +1,64 @@
 import path from "path";
 import fs from "fs";
-import { checkStoreOwnership } from "../blockchain/datastore";
+import { hasMetadataWritePermissions } from "../blockchain/datastore";
 import { Config } from "../types";
-import { CONFIG_FILE_PATH, COIN_STATE_FILE_PATH } from "../config";
+import { CONFIG_FILE_PATH, DIG_FOLDER_PATH } from "../config";
 import { isCoinSpendable } from "../blockchain/coins";
 import { getPeer } from "../blockchain/peer";
-import { deserializeStoreInfo, getLatestStoreInfo } from "../blockchain/datastore";
+import { findLauncherId, getLatestStoreInfo } from "../blockchain/datastore";
 import { getCoinId } from "datalayer-driver";
+import { waitForPromise } from "../utils";
 
-export const checkStorePermissions = async (): Promise<void> => {
-  const storeIsWritable = await checkStoreOwnership();
-  if (!storeIsWritable) {
-    throw new Error(
-      "Store is not writable by the current user. Please transfer ownership or add your key as an authorized writer."
-    );
+export const checkStoreWritePermissions = async (): Promise<void> => {
+  if (fs.existsSync(DIG_FOLDER_PATH)) {
+    const launcherId = findLauncherId(DIG_FOLDER_PATH);
+
+    if (launcherId) {
+      try {
+        await waitForPromise(
+          async () => {
+            const storeInfo = await getLatestStoreInfo();
+
+            if (storeInfo) {
+              const storeIsWritable = await hasMetadataWritePermissions(
+                storeInfo.launcherId
+              );
+
+              if (!storeIsWritable) {
+                throw new Error(
+                  "Store is not writable by the current user. Please transfer ownership or add your key as an authorized writer."
+                );
+              }
+
+              return true;
+            }
+          },
+          "Checking store permissions",
+          "Store is writable by your key.",
+          "You do not have write permissions to this store."
+        );
+      } catch (error: any) {
+        console.error(error.message);
+        throw error;
+      }
+    }
   }
 };
+
 export const ensureStoreIsSpendable = async (): Promise<void> => {
   const peer = await getPeer();
   const storeInfo = await getLatestStoreInfo();
   if (storeInfo) {
-    console.log("Checking if Store is spendable:", storeInfo.launcherId.toString("hex"));
-    
-    const isSpendable = await isCoinSpendable(
-      peer,
-      getCoinId(storeInfo.coin)
+    console.log(
+      "Checking if Store is spendable:",
+      storeInfo.launcherId.toString("hex")
     );
+
+    const isSpendable = await isCoinSpendable(peer, getCoinId(storeInfo.coin));
 
     if (!isSpendable) {
       throw new Error("Store is not spendable. Please wait for confirmation.");
     }
-
   }
 };
 

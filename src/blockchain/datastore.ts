@@ -10,7 +10,6 @@ import {
   DataStoreInfo,
   addressToPuzzleHash,
   updateStoreOwnership,
-  selectCoins,
   getCoinId,
   Peer,
   Coin,
@@ -22,6 +21,7 @@ import {
   meltStore,
   addFee,
   updateStoreMetadata,
+  syntheticKeyToPuzzleHash,
 } from "datalayer-driver";
 import { getPeer } from "./peer";
 import {
@@ -34,11 +34,11 @@ import {
   NETWORK_AGG_SIG_DATA,
   MIN_HEIGHT,
   MIN_HEIGHT_HEADER_HASH,
-  HEIGHT_FILE_PATH,
   DIG_FOLDER_PATH,
   getManifestFilePath,
+  getHeightFilePath,
 } from "../config";
-import { selectUnspentCoins } from "./coins";
+import { selectUnspentCoins, calculateFeeForCoinSpends } from "./coins";
 import { RootHistoryItem, DatFile } from "../types";
 import { validateFileSha256 } from "../utils";
 
@@ -46,53 +46,83 @@ export const mintDataLayerStore = async (
   label?: string,
   description?: string,
   sizeInBytes?: bigint,
-  authorizedWriterPublicAddress?: string
+  authorizedWriterPublicSyntheticKey?: string,
+  adminPublicSyntheticKey?: string
 ): Promise<DataStoreInfo> => {
   try {
     const peer = await getPeer();
     const publicSyntheticKey = await getPublicSyntheticKey();
-    const ownerPuzzleHash = await getOwnerPuzzleHash();
-    const feeBigInt = BigInt(100000000);
-    const coins = await selectUnspentCoins(peer, feeBigInt);
+    const ownerSyntheicPuzzleHash =
+      syntheticKeyToPuzzleHash(publicSyntheticKey);
+    const storeCreationCoins = await selectUnspentCoins(
+      peer,
+      BigInt(1),
+      BigInt(0)
+    );
     const delegationLayers = [];
 
-    if (authorizedWriterPublicAddress) {
+    if (adminPublicSyntheticKey) {
       delegationLayers.push(
-        adminDelegatedPuzzleFromKey(
-          Buffer.from(authorizedWriterPublicAddress, "hex")
-        ),
+        adminDelegatedPuzzleFromKey(Buffer.from(adminPublicSyntheticKey, "hex"))
+      );
+    }
+
+    if (authorizedWriterPublicSyntheticKey) {
+      delegationLayers.push(
         writerDelegatedPuzzleFromKey(
-          Buffer.from(authorizedWriterPublicAddress, "hex")
+          Buffer.from(authorizedWriterPublicSyntheticKey, "hex")
         )
       );
     }
 
     delegationLayers.push(
-      oracleDelegatedPuzzle(ownerPuzzleHash, BigInt(100000))
+      oracleDelegatedPuzzle(ownerSyntheicPuzzleHash, BigInt(100000))
     );
-    const successResponse = await mintStore(
+
+    const rootHash = Buffer.from(
+      "0000000000000000000000000000000000000000000000000000000000000000",
+      "hex"
+    );
+
+    // Array of parameters for mintStore
+    const mintStoreParams = [
       publicSyntheticKey,
-      coins,
-      Buffer.from(
-        "0000000000000000000000000000000000000000000000000000000000000000",
-        "hex"
-      ),
+      storeCreationCoins,
+      rootHash,
       label || "",
       description || "",
       sizeInBytes || BigInt(0),
-      ownerPuzzleHash,
+      ownerSyntheicPuzzleHash,
       delegationLayers,
-      feeBigInt
-    );
+    ];
+
+    // Preflight call to mintStore without a fee
+    const { coinSpends: preflightCoinSpends } = await mintStore.apply(null, [
+      // @ts-ignore
+      ...mintStoreParams,
+      // @ts-ignore
+      BigInt(0),
+    ]);
+
+    // Calculate fee based on the coin spends from the preflight call
+    const fee = await calculateFeeForCoinSpends(peer, preflightCoinSpends);
+
+    // Final call to mintStore with the calculated fee
+    const storeCreationResponse = await mintStore.apply(null, [
+      // @ts-ignore
+      ...mintStoreParams,
+      // @ts-ignore
+      fee,
+    ]);
 
     const sig = signCoinSpends(
-      successResponse.coinSpends as CoinSpend[],
+      storeCreationResponse.coinSpends,
       [await getPrivateSyntheticKey()],
       Buffer.from(NETWORK_AGG_SIG_DATA, "hex")
     );
 
     const err = await peer.broadcastSpend(
-      successResponse.coinSpends as CoinSpend[],
+      storeCreationResponse.coinSpends as CoinSpend[],
       [sig]
     );
 
@@ -100,9 +130,10 @@ export const mintDataLayerStore = async (
       throw new Error(err);
     }
 
+    // Add some time to get out of the mempool
     await new Promise((resolve) => setTimeout(resolve, 5000));
 
-    return successResponse.newInfo;
+    return storeCreationResponse.newInfo;
   } catch (error) {
     console.error("Unable to mint store");
     console.trace(error);
@@ -255,14 +286,48 @@ export const getLatestStoreInfo = async (): Promise<DataStoreInfo> => {
     throw new Error("No valid data store folder found.");
   }
 
+  const { createdAtHeight, createdAtHash } = await getStoreCreatedAtHeight();
+
   const { latestInfo } = await peer.syncStoreFromLauncherId(
     Buffer.from(launcherId, "hex"),
-    MIN_HEIGHT,
-    Buffer.from(MIN_HEIGHT_HEADER_HASH, "hex"),
+    createdAtHeight,
+    createdAtHash,
     false
   );
 
   return latestInfo;
+};
+
+export const getStoreCreatedAtHeight = async (): Promise<{
+  createdAtHeight: number;
+  createdAtHash: Buffer;
+}> => {
+  const defaultHeight = MIN_HEIGHT;
+  const defaultHash = Buffer.from(MIN_HEIGHT_HEADER_HASH, "hex");
+
+  try {
+    const launcherId = findLauncherId(DIG_FOLDER_PATH);
+    if (!launcherId) {
+      return { createdAtHeight: defaultHeight, createdAtHash: defaultHash };
+    }
+
+    const heightFilePath = getHeightFilePath(launcherId);
+
+    // Check if the file exists before attempting to read it
+    if (!fs.existsSync(heightFilePath)) {
+      return { createdAtHeight: defaultHeight, createdAtHash: defaultHash };
+    }
+
+    const heightFile = fs.readFileSync(heightFilePath, "utf-8");
+    const { height, hash } = JSON.parse(heightFile);
+
+    return {
+      createdAtHeight: height || defaultHeight,
+      createdAtHash: Buffer.from(hash || MIN_HEIGHT_HEADER_HASH, "hex"),
+    };
+  } catch {
+    return { createdAtHeight: defaultHeight, createdAtHash: defaultHash };
+  }
 };
 
 export const getRootHistory = async (
@@ -274,11 +339,13 @@ export const getRootHistory = async (
     throw new Error("No valid data store folder found.");
   }
 
+  const { createdAtHeight, createdAtHash } = await getStoreCreatedAtHeight();
+
   const { rootHashes, rootHashesTimestamps } =
     await peer.syncStoreFromLauncherId(
       launcherId,
-      MIN_HEIGHT,
-      Buffer.from(MIN_HEIGHT_HEADER_HASH, "hex"),
+      createdAtHeight,
+      createdAtHash,
       true
     );
 
@@ -294,7 +361,7 @@ export const getRootHistory = async (
   });
 
   // hack until fixed in datalayer-driver
-  return [{root_hash: '0000000000000000000000000000000000000000000000000000000000000000', timestamp: 0}, ...rootHistory];
+  return rootHistory;
 };
 
 /**
@@ -322,63 +389,35 @@ export const findLauncherId = (dirPath: string): string | null => {
 
   return null;
 };
-export const checkStoreOwnership = async (): Promise<boolean> => {
+
+export const hasMetadataWritePermissions = async (
+  storeId: Buffer
+): Promise<boolean> => {
   try {
-    const peer: Peer = await getPeer();
+    const peer = await getPeer();
 
-    const dataStoreInfo = await getLatestStoreInfo();
+    const { createdAtHeight, createdAtHash } = await getStoreCreatedAtHeight();
 
-    if (!dataStoreInfo) {
-      return true;
-    }
-
-    // Load height cache from HEIGHT_FILE_PATH, or use defaults if not found
-    let heightCache = {
-      minHeight: MIN_HEIGHT,
-      minHeightHeaderHash: MIN_HEIGHT_HEADER_HASH,
-    };
-    if (fs.existsSync(HEIGHT_FILE_PATH)) {
-      const fileContent = fs.readFileSync(HEIGHT_FILE_PATH, "utf-8");
-      heightCache = JSON.parse(fileContent);
-    }
-
-    const minHeight = heightCache.minHeight || MIN_HEIGHT;
-    const minHeightHeaderHash =
-      heightCache.minHeightHeaderHash || MIN_HEIGHT_HEADER_HASH;
-
-    // Sync store information from the blockchain
-    const { latestInfo, latestHeight } = await peer.syncStoreFromLauncherId(
-      dataStoreInfo.launcherId,
-      MIN_HEIGHT,
-      Buffer.from(MIN_HEIGHT_HEADER_HASH, "hex"),
+    const { latestInfo } = await peer.syncStoreFromLauncherId(
+      storeId,
+      createdAtHeight,
+      createdAtHash,
       false
     );
 
-    const latestHeaderHash = await peer.getHeaderHash(latestHeight);
-
-    // Save the latest height and header hash to HEIGHT_FILE_PATH
-    const newHeightCache = {
-      minHeight: latestHeight,
-      minHeightHeaderHash: latestHeaderHash.toString("hex"),
-    };
-    fs.writeFileSync(HEIGHT_FILE_PATH, JSON.stringify(newHeightCache, null, 4));
-
-    // Get the current owner's puzzle hash
     const ownerPuzzleHash = await getOwnerPuzzleHash();
 
-    // Check if the store's owner matches the current owner's puzzle hash
-    return latestInfo.ownerPuzzleHash.equals(ownerPuzzleHash);
-  } catch (error) {
-    const resetHeightCache = {
-      minHeight: MIN_HEIGHT,
-      minHeightHeaderHash: MIN_HEIGHT_HEADER_HASH,
-    };
+    const isStoreOwner = latestInfo.ownerPuzzleHash.equals(ownerPuzzleHash);
 
-    fs.writeFileSync(
-      HEIGHT_FILE_PATH,
-      JSON.stringify(resetHeightCache, null, 4)
+    const hasWriteAccess = latestInfo.delegatedPuzzles.some(
+      ({ puzzleInfo }) =>
+        puzzleInfo.adminInnerPuzzleHash === ownerPuzzleHash ||
+        puzzleInfo.writerInnerPuzzleHash === ownerPuzzleHash
     );
-    return checkStoreOwnership();
+
+    return isStoreOwner || hasWriteAccess;
+  } catch (error) {
+    throw new Error("Failed to check store ownership.");
   }
 };
 
@@ -389,7 +428,6 @@ export const meltDataLayerStore = async () => {
   }
 
   const peer = await getPeer();
-  const defaultFee = BigInt(10000);
   const ownerPublicKey = await getOwnerPublicKey();
   const meltStoreCoinSpends = await meltStore(
     storeInfo,
@@ -397,12 +435,14 @@ export const meltDataLayerStore = async () => {
   );
 
   const privateKey = await getPrivateSyntheticKey();
-  const unspentCoins = await selectUnspentCoins(peer, defaultFee);
+  const fee = await calculateFeeForCoinSpends(peer, null);
+
+  const unspentCoins = await selectUnspentCoins(peer, BigInt(0), fee);
   const feeCoinSpends = await addFee(
     await getPublicSyntheticKey(),
     unspentCoins,
     meltStoreCoinSpends.map((coinSpend) => getCoinId(coinSpend.coin)),
-    defaultFee
+    fee
   );
 
   const combinedCoinSpends = [
@@ -480,15 +520,15 @@ export const updateDataStoreMetadata = async ({
     null
   );
 
-  const feeBigInt = BigInt(100000000);
-  const unspentCoins = await selectUnspentCoins(peer, feeBigInt);
+  const fee = await calculateFeeForCoinSpends(peer, null);
+  const unspentCoins = await selectUnspentCoins(peer, BigInt(0), fee);
   const feeCoinSpends = await addFee(
     ownerPublicKey,
     unspentCoins,
     updateStoreResponse.coinSpends.map((coinSpend) =>
       getCoinId(coinSpend.coin)
     ),
-    feeBigInt
+    fee
   );
 
   const combinedCoinSpends = [
@@ -511,11 +551,35 @@ export const updateDataStoreMetadata = async ({
   return updateStoreResponse.newInfo;
 };
 
-export const validateStore = async ({
-  verbose,
-}: {
-  verbose: boolean;
-}): Promise<boolean> => {
+export const getLocalRootHistory = async (): Promise<
+  RootHistoryItem[] | undefined
+> => {
+  const launcherId = await findLauncherId(DIG_FOLDER_PATH);
+
+  if (!launcherId) {
+    throw new Error("No launcher ID found in the current directory");
+  }
+
+  // Load manifest file
+  const manifestFilePath = getManifestFilePath(launcherId);
+  if (!fs.existsSync(manifestFilePath)) {
+    console.error("Manifest file not found");
+    return undefined;
+  }
+
+  const manifestHashes = fs
+    .readFileSync(manifestFilePath, "utf-8")
+    .split("\n")
+    .filter(Boolean);
+
+  return manifestHashes.map((rootHash) => ({
+    root_hash: rootHash,
+    // TODO: alter the manifest file to include timestamps
+    timestamp: 0,
+  }));
+};
+
+export const validateStore = async (): Promise<boolean> => {
   const launcherId = await findLauncherId(DIG_FOLDER_PATH);
 
   if (!launcherId) {
@@ -525,7 +589,11 @@ export const validateStore = async ({
 
   const rootHistory = await getRootHistory(Buffer.from(launcherId, "hex"));
 
-  if (verbose) {
+  if (process.env.DIG_DEBUG == "1") {
+    console.log(rootHistory);
+  }
+
+  if (process.env.DIG_DEBUG == "1") {
     console.log(rootHistory);
   }
 
@@ -599,7 +667,7 @@ export const validateStore = async ({
         path.join(DIG_FOLDER_PATH, launcherId, "data")
       );
 
-      if (verbose) {
+      if (process.env.DIG_DEBUG == "1") {
         console.log(
           `Key ${fileKey}: SHA256 = ${fileData.sha256}, integrity: ${
             integrityCheck ? "OK" : "FAILED"
@@ -619,7 +687,7 @@ export const validateStore = async ({
     return false;
   }
 
-  if (verbose) {
+  if (process.env.DIG_DEBUG == "1") {
     console.log("Store validation successful.");
   }
 

@@ -37,3 +37,8 @@ export interface DatFile {
     };
   };
 }
+
+export interface Credentials {
+  username: string;
+  password: string;
+}

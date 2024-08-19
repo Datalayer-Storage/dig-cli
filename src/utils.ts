@@ -410,6 +410,7 @@ export const getDeltaFiles = async (
     .split("\n")
     .filter(Boolean);
 
+  console.log("");
   console.log(`Uploading delta from generation ${generationIndex}`);
 
   const filesInvolved: string[] = [];

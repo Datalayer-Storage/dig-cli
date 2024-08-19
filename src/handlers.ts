@@ -14,7 +14,7 @@ export const handlers = {
   },
   push: async () => {
     await push();
-    console.log("Push command executed");
+    console.log("Success!");
   },
   pull: async () => {
     await pull();

@@ -16,6 +16,7 @@ const uploadArchive = async (
   origin: URL,
   archivePath: string
 ): Promise<void> => {
+  console.log("");
   const multiBar = new MultiBar(
     {
       clearOnComplete: false,
@@ -50,8 +51,7 @@ const uploadArchive = async (
       });
 
       response.on("end", () => {
-        console.log(`Uploaded ${storeId}.zip to ${origin.hostname}`);
-        console.log("S3 Response:", responseData);
+        console.log(`Uploaded ${storeId}.dig to ${origin.hostname}`);
       });
     }
   );
@@ -121,6 +121,7 @@ export const uploadDirectory = async (
     // Upload the archive
     await uploadArchive(uploadUrl, storeId, origin, archivePath);
 
+    console.log("");
     console.log(`Upload completed successfully.`);
   } catch (error) {
     console.error("Upload failed:", error);

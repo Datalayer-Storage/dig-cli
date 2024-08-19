@@ -188,10 +188,10 @@ export const push = async (): Promise<void> => {
       `${origin.protocol}//${origin.hostname}`
     );
     if (!serverCoinExists) {
-      console.log(`Creating server coin for ${origin.hostname}`);
-      await createServerCoin(storeId, [
-        `${origin.protocol}//${origin.hostname}`,
-      ]);
+   //   console.log(`Creating server coin for ${origin.hostname}`);
+  //    await createServerCoin(storeId, [
+   //     `${origin.protocol}//${origin.hostname}`,
+   //   ]);
     }
   } catch (error: any) {
     console.error(`Push failed: ${error.message}`);

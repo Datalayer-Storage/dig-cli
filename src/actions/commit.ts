@@ -1,16 +1,16 @@
 import path from "path";
 import fs from "fs";
 import { addDirectory, calculateFolderSize, waitForPromise } from "../utils";
-import { DataIntegrityLayer } from "../DataIntegrityLayer";
+import { DataIntegrityTree } from "../DataIntegrityTree";
 import {
   validateStore,
   updateDataStoreMetadata,
-  serializeStoreInfo,
   getLatestStoreInfo,
+  findStoreId,
 } from "../blockchain/datastore";
+import { serializeStoreInfo } from "../blockchain/serialization";
 import {
   DIG_FOLDER_PATH,
-  COIN_STATE_FILE_PATH,
   getManifestFilePath,
   loadDigConfig,
 } from "../config";
@@ -25,30 +25,28 @@ export const commit = async (): Promise<void> => {
       "Store integrity check passed.",
       "Store integrity check failed."
     );
+
     if (!storeIntegrityCheck) {
       throw new Error("Store integrity check failed.");
     }
 
-    const latestStoreInfo = await getLatestStoreInfo();
+    const storeId = findStoreId();
+    if (!storeId) {
+      throw new Error("Store ID not found. Please run init first.");
+    }
 
-    if (!latestStoreInfo) {
+    const { latestInfo } = await getLatestStoreInfo(storeId);
+    if (!latestInfo) {
       throw new Error("Store info not found. Please run init first.");
     }
 
-    const onChainRootHash = latestStoreInfo.metadata.rootHash.toString("hex");
-    fs.writeFileSync(
-      COIN_STATE_FILE_PATH,
-      JSON.stringify(serializeStoreInfo(latestStoreInfo), null, 4)
-    );
-
+    const onChainRootHash = latestInfo.metadata.rootHash.toString("hex");
     await catchUpWithManifest(
       onChainRootHash,
-      latestStoreInfo.launcherId.toString("hex")
+      latestInfo.launcherId.toString("hex")
     );
 
-    const storeId = latestStoreInfo.launcherId.toString("hex");
-
-    const datalayer = new DataIntegrityLayer(storeId, {
+    const datalayer = new DataIntegrityTree(storeId.toString('hex'), {
       storageMode: "local",
       storeDir: DIG_FOLDER_PATH,
       disableInitialize: true,
@@ -87,7 +85,7 @@ export const commit = async (): Promise<void> => {
       "Store integrity check passed.",
       "Store integrity check failed."
     );
-    
+
     if (!storeIntegrityCheck) {
       throw new Error("Store integrity check failed.");
     }
@@ -131,10 +129,6 @@ const catchUpWithManifest = async (
       });
 
       await waitForConfirmation(peer, updatedStoreInfo.coin.parentCoinInfo);
-      fs.writeFileSync(
-        COIN_STATE_FILE_PATH,
-        JSON.stringify(serializeStoreInfo(updatedStoreInfo), null, 4)
-      );
     }
 
     console.log("Catch-up with manifest completed.");

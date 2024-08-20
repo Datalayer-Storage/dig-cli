@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as crypto from "crypto";
 import * as os from "os";
-import { DataIntegrityLayer } from "./DataIntegrityLayer"; // Ensure this import path is correct based on your project structure
+import { DataIntegrityTree } from "./DataIntegrityTree"; // Ensure this import path is correct based on your project structure
 
 /**
  * Calculate the SHA-256 hash of a buffer using the crypto module.
@@ -22,7 +22,7 @@ const calculateSHA256 = (buffer: Buffer): string => {
  * @param baseDir - The base directory for relative paths.
  */
 const addDirectory = async (
-  manager: DataIntegrityLayer,
+  manager: DataIntegrityTree,
   dirPath: string,
   baseDir: string = dirPath
 ): Promise<void> => {

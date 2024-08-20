@@ -1,22 +1,90 @@
-import * as https from "https";
-import * as http from "http";
 import * as fs from "fs";
 import * as path from "path";
-import archiver from "archiver";
-import { URL } from "url";
-import { tmpdir } from "os";
+import crypto from "crypto";
 import { MultiBar, Presets } from "cli-progress";
-import { getDeltaFiles } from "./utils"; // Adjust the import path as needed
+import { getDeltaFiles } from "./utils";
+import superagent from "superagent";
+import { createKeyOwnershipSignature } from "./blockchain/signature";
+import { getPublicSyntheticKey } from "./blockchain/keys";
+import { getStoreCreatedAtHeight } from "./blockchain/datastore";
 
-const getHttpModule = (url: URL) => (url.protocol === "https:" ? https : http);
+// Function to request a signed upload URL
+const getUploadUrl = async (
+  origin: string,
+  username: string,
+  password: string,
+  nonce: string,
+  filename: string,
+  sha256: string
+): Promise<string | undefined> => {
+  try {
+    const keyOwnershipSig = await createKeyOwnershipSignature(nonce);
+    const publicSyntheticKey = await getPublicSyntheticKey();
+    const { createdAtHeight, createdAtHash } = await getStoreCreatedAtHeight();
 
-const uploadArchive = async (
-  uploadUrl: string,
-  storeId: string,
-  origin: URL,
-  archivePath: string
+    const response = await superagent
+      .post(origin)
+      .auth(username, password)
+      .send({
+        key_ownership_sig: keyOwnershipSig,
+        public_key: publicSyntheticKey.toString("hex"),
+        filename: filename.replace(/\\/g, "/"),
+        sha256, // Include the SHA-256 checksum in the request
+      })
+      .set("x-created-at-height", String(createdAtHeight))
+      .set("x-created-at-hash", createdAtHash.toString("hex"));
+
+    return response.body.uploadUrl;
+  } catch (error: any) {
+    console.error("Failed to get signed upload URL:", error.message || error);
+    return undefined;
+  }
+};
+
+// Function to upload a single file using the signed URL
+const uploadFile = async (
+  filePath: string,
+  relativePath: string,
+  uploadUrl: string
 ): Promise<void> => {
-  console.log("");
+  try {
+    const fileBuffer = fs.readFileSync(filePath);
+    const fileSize = fileBuffer.length;
+
+    const response = await superagent
+      .put(uploadUrl)
+      .set("Content-Type", "application/octet-stream")
+      .set("Content-Length", String(fileSize))
+      .send(fileBuffer);
+
+    if (response.status !== 200) {
+      throw new Error(`Upload failed with status ${response.status}: ${response.text}`);
+    }
+
+  } catch (error: any) {
+    console.error("Upload failed:", error.message || error);
+    throw error; // Re-throw to stop the upload process
+  }
+};
+
+// Function to handle the upload process for a directory
+export const uploadDirectory = async (
+  origin: string,
+  username: string,
+  password: string,
+  nonce: string,
+  directory: string,
+  storeId: string,
+  generationIndex: number
+): Promise<void> => {
+  const storeDir = path.resolve(directory, storeId);
+  const filesToUpload = await getDeltaFiles(storeId, generationIndex, directory);
+
+  if (filesToUpload.length === 0) {
+    console.log("No files to upload.");
+    return;
+  }
+
   const multiBar = new MultiBar(
     {
       clearOnComplete: false,
@@ -26,109 +94,37 @@ const uploadArchive = async (
     Presets.shades_classic
   );
 
-  const uploadBar = multiBar.create(100, 0, { name: "Uploading" });
-
-  const totalSize = fs.statSync(archivePath).size;
-
-  const url = new URL(uploadUrl);
-  const httpModule = getHttpModule(url);
-
-  const request = httpModule.request(
-    {
-      method: "PUT",
-      hostname: url.hostname,
-      port: url.port,
-      path: url.pathname + url.search,
-      headers: {
-        "Content-Type": "application/zip",
-        "Content-Length": totalSize,
-      },
-    },
-    (response) => {
-      let responseData = "";
-      response.on("data", (chunk) => {
-        responseData += chunk;
-      });
-
-      response.on("end", () => {
-        console.log(`Uploaded ${storeId}.dig to ${origin.hostname}`);
-      });
-    }
-  );
-
-  request.on("error", (err) => {
-    console.error("Upload failed:", err);
-  });
-
-  const fileStream = fs.createReadStream(archivePath);
-  fileStream.pipe(request);
-
-  let uploadedSize = 0;
-  fileStream.on("data", (chunk) => {
-    uploadedSize += chunk.length;
-    const percent = Math.round((uploadedSize / totalSize) * 100);
-    uploadBar.update(percent);
-  });
-
-  fileStream.on("end", () => {
-    request.end();
-  });
-
-  await new Promise<void>((resolve, reject) => {
-    request.on("finish", resolve);
-    request.on("error", reject);
-  });
-
-  multiBar.stop();
-};
-
-export const uploadDirectory = async (
-  uploadUrl: string,
-  storeId: string,
-  origin: URL,
-  directory: string,
-  generationIndex: number
-): Promise<void> => {
-  const tempDir = path.join(tmpdir(), `upload-${Date.now()}`);
-  const archivePath = path.join(tempDir, `${storeId}.zip`);
+  const uploadBar = multiBar.create(filesToUpload.length, 0, { name: "Files" });
 
   try {
-    // Ensure the temp directory exists
-    fs.mkdirSync(tempDir, { recursive: true });
+    for (const filePath of filesToUpload) {
+      const relativePath = path.relative(storeDir, filePath).replace(/\\/g, "/"); // Convert to forward slashes
 
-    // Get the list of files to archive using getDeltaFiles
-    const filesToArchive = await getDeltaFiles(storeId, generationIndex, directory);
+      // Calculate the SHA-256 checksum for the file
+      const fileBuffer = fs.readFileSync(filePath);
+      const fileChecksum = crypto.createHash("sha256").update(fileBuffer).digest("hex");
 
-    if (filesToArchive.length === 0) {
-      console.log("No files to upload.");
-      return;
+      const uploadUrl = await getUploadUrl(
+        origin,
+        username,
+        password,
+        nonce,
+        relativePath,
+        fileChecksum // Pass the checksum when requesting the signed URL
+      );
+
+      if (!uploadUrl) {
+        throw new Error("Could not obtain upload URL");
+      }
+
+      await uploadFile(filePath, relativePath, uploadUrl);
+      uploadBar.increment();
     }
 
-    // Create the archive and write it to the temp file
-    const output = fs.createWriteStream(archivePath);
-    const archive = archiver("zip", { zlib: { level: 9 } });
-
-    archive.pipe(output);
-
-    // Add only the necessary files to the archive
-    filesToArchive.forEach((filePath) => {
-      const relativePath = path.relative(directory, filePath);
-      archive.file(filePath, { name: relativePath });
-    });
-
-    await archive.finalize();
-
-    // Upload the archive
-    await uploadArchive(uploadUrl, storeId, origin, archivePath);
-
-    console.log("");
-    console.log(`Upload completed successfully.`);
-  } catch (error) {
-    console.error("Upload failed:", error);
+  } catch (error: any) {
+    console.error("Upload process failed:", error.message || error);
     throw error;
   } finally {
-    // Cleanup: delete the temporary archive file and directory
-    fs.rmSync(tempDir, { recursive: true, force: true });
-    console.log(`Temporary files cleaned up.`);
+    multiBar.stop();
   }
 };

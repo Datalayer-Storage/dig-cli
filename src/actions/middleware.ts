@@ -5,23 +5,23 @@ import { Config } from "../types";
 import { CONFIG_FILE_PATH, DIG_FOLDER_PATH } from "../config";
 import { isCoinSpendable } from "../blockchain/coins";
 import { getPeer } from "../blockchain/peer";
-import { findLauncherId, getLatestStoreInfo } from "../blockchain/datastore";
+import { findStoreId, getLatestStoreInfo } from "../blockchain/datastore";
 import { getCoinId } from "datalayer-driver";
 import { waitForPromise } from "../utils";
 
 export const checkStoreWritePermissions = async (): Promise<void> => {
   if (fs.existsSync(DIG_FOLDER_PATH)) {
-    const launcherId = findLauncherId(DIG_FOLDER_PATH);
+    const storeId = findStoreId();
 
-    if (launcherId) {
+    if (storeId) {
       try {
         await waitForPromise(
           async () => {
-            const storeInfo = await getLatestStoreInfo();
+            const { latestInfo } = await getLatestStoreInfo(storeId);
 
-            if (storeInfo) {
+            if (latestInfo) {
               const storeIsWritable = await hasMetadataWritePermissions(
-                storeInfo.launcherId
+                latestInfo.launcherId
               );
 
               if (!storeIsWritable) {
@@ -47,14 +47,20 @@ export const checkStoreWritePermissions = async (): Promise<void> => {
 
 export const ensureStoreIsSpendable = async (): Promise<void> => {
   const peer = await getPeer();
-  const storeInfo = await getLatestStoreInfo();
-  if (storeInfo) {
+  const storeId = findStoreId();
+
+  if (!storeId) {
+    throw new Error("Store ID not found. Please run init first.");
+  }
+
+  const { latestInfo } = await getLatestStoreInfo(storeId);
+  if (latestInfo) {
     console.log(
       "Checking if Store is spendable:",
-      storeInfo.launcherId.toString("hex")
+      latestInfo.launcherId.toString("hex")
     );
 
-    const isSpendable = await isCoinSpendable(peer, getCoinId(storeInfo.coin));
+    const isSpendable = await isCoinSpendable(peer, getCoinId(latestInfo.coin));
 
     if (!isSpendable) {
       throw new Error("Store is not spendable. Please wait for confirmation.");

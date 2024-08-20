@@ -8,17 +8,8 @@ import {
   signCoinSpends,
   CoinSpend,
   DataStoreInfo,
-  addressToPuzzleHash,
-  updateStoreOwnership,
   getCoinId,
-  Peer,
-  Coin,
-  Proof,
-  DelegatedPuzzle,
-  DelegatedPuzzleInfo,
-  puzzleHashToAddress,
   DataStoreMetadata,
-  meltStore,
   addFee,
   updateStoreMetadata,
   syntheticKeyToPuzzleHash,
@@ -28,7 +19,6 @@ import {
   getPublicSyntheticKey,
   getPrivateSyntheticKey,
   getOwnerPuzzleHash,
-  getOwnerPublicKey,
 } from "./keys";
 import {
   NETWORK_AGG_SIG_DATA,
@@ -41,6 +31,7 @@ import {
 import { selectUnspentCoins, calculateFeeForCoinSpends } from "./coins";
 import { RootHistoryItem, DatFile } from "../types";
 import { validateFileSha256 } from "../utils";
+import { getCachedStoreInfo, cacheStoreInfo } from "./cache";
 
 export const mintDataLayerStore = async (
   label?: string,
@@ -141,161 +132,63 @@ export const mintDataLayerStore = async (
   }
 };
 
-export const serializeStoreInfo = (storeInfo: DataStoreInfo): any => {
-  return {
-    coin: {
-      parentCoinInfo: storeInfo.coin.parentCoinInfo.toString("hex"),
-      puzzleHash: storeInfo.coin.puzzleHash.toString("hex"),
-      amount: storeInfo.coin.amount.toString(),
-    },
-    launcherId: storeInfo.launcherId.toString("hex"),
-    proof: {
-      lineageProof: storeInfo.proof.lineageProof
-        ? {
-            parentParentCoinId:
-              storeInfo.proof.lineageProof.parentParentCoinId.toString("hex"),
-            parentInnerPuzzleHash:
-              storeInfo.proof.lineageProof.parentInnerPuzzleHash.toString(
-                "hex"
-              ),
-            parentAmount: storeInfo.proof.lineageProof.parentAmount.toString(),
-          }
-        : undefined,
-      eveProof: storeInfo.proof.eveProof
-        ? {
-            parentCoinInfo:
-              storeInfo.proof.eveProof.parentCoinInfo.toString("hex"),
-            amount: storeInfo.proof.eveProof.amount.toString(),
-          }
-        : undefined,
-    },
-    metadata: {
-      rootHash: storeInfo.metadata.rootHash.toString("hex"),
-      label: storeInfo.metadata.label,
-      description: storeInfo.metadata.description,
-      bytes: storeInfo.metadata.bytes?.toString(),
-    },
-    ownerPuzzleHash: storeInfo.ownerPuzzleHash.toString("hex"),
-    delegatedPuzzles: storeInfo.delegatedPuzzles.map((puzzle) => ({
-      puzzleHash: puzzle.puzzleHash.toString("hex"),
-      puzzleInfo: {
-        adminInnerPuzzleHash:
-          puzzle.puzzleInfo.adminInnerPuzzleHash?.toString("hex"),
-        writerInnerPuzzleHash:
-          puzzle.puzzleInfo.writerInnerPuzzleHash?.toString("hex"),
-        oraclePaymentPuzzleHash:
-          puzzle.puzzleInfo.oraclePaymentPuzzleHash?.toString("hex"),
-        oracleFee: puzzle.puzzleInfo.oracleFee?.toString(),
-      },
-    })),
-  };
-};
-
-export const deserializeStoreInfo = (
-  filePath: string
-): DataStoreInfo | null => {
-  if (!fs.existsSync(filePath)) {
-    return null;
-  }
-
-  const rawData = fs.readFileSync(filePath, "utf-8");
-  const data = JSON.parse(rawData);
-
-  const coin: Coin = {
-    parentCoinInfo: Buffer.from(data.coin.parentCoinInfo, "hex"),
-    puzzleHash: Buffer.from(data.coin.puzzleHash, "hex"),
-    amount: BigInt(data.coin.amount),
-  };
-
-  const proof: Proof = {
-    lineageProof: data.proof.lineageProof
-      ? {
-          parentParentCoinId: Buffer.from(
-            data.proof.lineageProof.parentParentCoinId,
-            "hex"
-          ),
-          parentInnerPuzzleHash: Buffer.from(
-            data.proof.lineageProof.parentInnerPuzzleHash,
-            "hex"
-          ),
-          parentAmount: BigInt(data.proof.lineageProof.parentAmount),
-        }
-      : undefined,
-    eveProof: data.proof.eveProof
-      ? {
-          parentCoinInfo: Buffer.from(
-            data.proof.eveProof.parentCoinInfo,
-            "hex"
-          ),
-          amount: BigInt(data.proof.eveProof.amount),
-        }
-      : undefined,
-  };
-
-  const metadata: DataStoreMetadata = {
-    rootHash: Buffer.from(data.metadata.rootHash, "hex"),
-    label: data.metadata.label,
-    description: data.metadata.description,
-    bytes: data.metadata.bytes ? BigInt(data.metadata.bytes) : undefined,
-  };
-
-  const delegatedPuzzles: DelegatedPuzzle[] = data.delegatedPuzzles.map(
-    (puzzle: any) => ({
-      puzzleHash: Buffer.from(puzzle.puzzleHash, "hex"),
-      puzzleInfo: {
-        adminInnerPuzzleHash: puzzle.puzzleInfo.adminInnerPuzzleHash
-          ? Buffer.from(puzzle.puzzleInfo.adminInnerPuzzleHash, "hex")
-          : undefined,
-        writerInnerPuzzleHash: puzzle.puzzleInfo.writerInnerPuzzleHash
-          ? Buffer.from(puzzle.puzzleInfo.writerInnerPuzzleHash, "hex")
-          : undefined,
-        oraclePaymentPuzzleHash: puzzle.puzzleInfo.oraclePaymentPuzzleHash
-          ? Buffer.from(puzzle.puzzleInfo.oraclePaymentPuzzleHash, "hex")
-          : undefined,
-        oracleFee: puzzle.puzzleInfo.oracleFee
-          ? BigInt(puzzle.puzzleInfo.oracleFee)
-          : undefined,
-      } as DelegatedPuzzleInfo,
-    })
-  );
-
-  const dataStoreInfo: DataStoreInfo = {
-    coin,
-    launcherId: Buffer.from(data.launcherId, "hex"),
-    proof,
-    metadata,
-    ownerPuzzleHash: Buffer.from(data.ownerPuzzleHash, "hex"),
-    delegatedPuzzles,
-  };
-
-  return dataStoreInfo;
-};
-
-/**
- * Retrieves the latest DataStoreInfo by finding the top-level folder in the .dig directory that is a 64-character hex string.
- *
- * @returns {Promise<DataStoreInfo>} The latest DataStoreInfo.
- */
-export const getLatestStoreInfo = async (): Promise<DataStoreInfo> => {
+// Function to get the latest store info with caching and synchronization
+export const getLatestStoreInfo = async (
+  storeId: Buffer
+): Promise<{
+  latestInfo: DataStoreInfo;
+  latestHeight: number;
+  latestHash: Buffer;
+}> => {
   const peer = await getPeer();
 
-  // Find the folder that has a 64-character hex name
-  const launcherId = findLauncherId(DIG_FOLDER_PATH);
+  const heightFilePath = getHeightFilePath(storeId.toString("hex"));
+  const heightFile = fs.readFileSync(heightFilePath, "utf-8");
+  const { createdAtHeight, createdAtHash } = JSON.parse(heightFile);
 
-  if (!launcherId) {
-    throw new Error("No valid data store folder found.");
+  // Check if the store info is already cached
+  const cachedInfo = getCachedStoreInfo(storeId.toString("hex"));
+  if (cachedInfo) {
+    const {
+      latestInfo: previousInfo,
+      // latestHeight: previousHeight,
+      // latestHash: previousHash,
+    } = cachedInfo;
+
+    const { latestInfo, latestHeight } = await peer.syncStore(
+      previousInfo,
+      createdAtHeight,
+      Buffer.from(createdAtHash, "hex"),
+      false
+    );
+
+    const latestHash = await peer.getHeaderHash(latestHeight);
+
+    // Cache the latest store info in the file system
+    cacheStoreInfo(
+      storeId.toString("hex"),
+      latestInfo,
+      latestHeight,
+      latestHash
+    );
+
+    return { latestInfo, latestHeight, latestHash };
   }
 
-  const { createdAtHeight, createdAtHash } = await getStoreCreatedAtHeight();
-
-  const { latestInfo } = await peer.syncStoreFromLauncherId(
-    Buffer.from(launcherId, "hex"),
-    createdAtHeight,
-    createdAtHash,
+  // If not cached, retrieve the latest store info from the blockchain
+  const { latestInfo, latestHeight } = await peer.syncStoreFromLauncherId(
+    storeId,
+    createdAtHeight || MIN_HEIGHT,
+    Buffer.from(createdAtHash || MIN_HEIGHT_HEADER_HASH, "hex"),
     false
   );
 
-  return latestInfo;
+  const latestHash = await peer.getHeaderHash(latestHeight);
+
+  // Cache the latest store info in the file system
+  cacheStoreInfo(storeId.toString("hex"), latestInfo, latestHeight, latestHash);
+
+  return { latestInfo, latestHeight, latestHash };
 };
 
 export const getStoreCreatedAtHeight = async (): Promise<{
@@ -306,12 +199,12 @@ export const getStoreCreatedAtHeight = async (): Promise<{
   const defaultHash = Buffer.from(MIN_HEIGHT_HEADER_HASH, "hex");
 
   try {
-    const launcherId = findLauncherId(DIG_FOLDER_PATH);
-    if (!launcherId) {
+    const storeId = findStoreId();
+    if (!storeId) {
       return { createdAtHeight: defaultHeight, createdAtHash: defaultHash };
     }
 
-    const heightFilePath = getHeightFilePath(launcherId);
+    const heightFilePath = getHeightFilePath(storeId.toString("hex"));
 
     // Check if the file exists before attempting to read it
     if (!fs.existsSync(heightFilePath)) {
@@ -370,20 +263,20 @@ export const getRootHistory = async (
  * @param {string} dirPath - The .dig directory path.
  * @returns {string | null} The name of the folder if found, otherwise null.
  */
-export const findLauncherId = (dirPath: string): string | null => {
-  if (!fs.existsSync(dirPath)) {
-    throw new Error(`Directory does not exist: ${dirPath}`);
+export const findStoreId = (): Buffer | null => {
+  if (!fs.existsSync(DIG_FOLDER_PATH)) {
+    throw new Error(`Directory does not exist: ${DIG_FOLDER_PATH}`);
   }
 
-  const folders = fs.readdirSync(dirPath);
+  const folders = fs.readdirSync(DIG_FOLDER_PATH);
 
   for (const folder of folders) {
-    const folderPath = path.join(dirPath, folder);
+    const folderPath = path.join(DIG_FOLDER_PATH, folder);
     if (
       fs.lstatSync(folderPath).isDirectory() &&
       /^[a-f0-9]{64}$/.test(folder)
     ) {
-      return folder;
+      return Buffer.from(folder, "hex");
     }
   }
 
@@ -394,16 +287,7 @@ export const hasMetadataWritePermissions = async (
   storeId: Buffer
 ): Promise<boolean> => {
   try {
-    const peer = await getPeer();
-
-    const { createdAtHeight, createdAtHash } = await getStoreCreatedAtHeight();
-
-    const { latestInfo } = await peer.syncStoreFromLauncherId(
-      storeId,
-      createdAtHeight,
-      createdAtHash,
-      false
-    );
+    const { latestInfo } = await getLatestStoreInfo(storeId);
 
     const ownerPuzzleHash = await getOwnerPuzzleHash();
 
@@ -421,96 +305,25 @@ export const hasMetadataWritePermissions = async (
   }
 };
 
-export const meltDataLayerStore = async () => {
-  const storeInfo = await getLatestStoreInfo();
-  if (!storeInfo) {
-    throw new Error("No data store found in donfig.");
-  }
-
-  const peer = await getPeer();
-  const ownerPublicKey = await getOwnerPublicKey();
-  const meltStoreCoinSpends = await meltStore(
-    storeInfo,
-    Buffer.from(ownerPublicKey, "hex")
-  );
-
-  const privateKey = await getPrivateSyntheticKey();
-  const fee = await calculateFeeForCoinSpends(peer, null);
-
-  const unspentCoins = await selectUnspentCoins(peer, BigInt(0), fee);
-  const feeCoinSpends = await addFee(
-    await getPublicSyntheticKey(),
-    unspentCoins,
-    meltStoreCoinSpends.map((coinSpend) => getCoinId(coinSpend.coin)),
-    fee
-  );
-
-  const combinedCoinSpends = [
-    ...(meltStoreCoinSpends as CoinSpend[]),
-    ...(feeCoinSpends as CoinSpend[]),
-  ];
-
-  const sig = signCoinSpends(
-    combinedCoinSpends,
-    [privateKey],
-    Buffer.from(NETWORK_AGG_SIG_DATA, "hex")
-  );
-};
-
-export const transferStoreOwnership = async (newOwner: string) => {
-  const peer = await getPeer();
-
-  const dataStoreInfo = await getLatestStoreInfo();
-
-  if (!dataStoreInfo) {
-    throw new Error("No data store found.");
-  }
-
-  const newOwnerPuzzleHash = addressToPuzzleHash(newOwner);
-  const currentOwnerPublicKey = puzzleHashToAddress(
-    dataStoreInfo.ownerPuzzleHash,
-    "mainnet"
-  );
-
-  const feeBigInt = BigInt(100000000);
-
-  const { coinSpends, newInfo } = updateStoreOwnership(
-    dataStoreInfo,
-    newOwnerPuzzleHash,
-    dataStoreInfo.delegatedPuzzles,
-    Buffer.from(currentOwnerPublicKey, "hex"),
-    null
-  );
-
-  const sig = signCoinSpends(
-    coinSpends as CoinSpend[],
-    [await getPrivateSyntheticKey()],
-    Buffer.from(NETWORK_AGG_SIG_DATA, "hex")
-  );
-
-  const err = await peer.broadcastSpend(coinSpends as CoinSpend[], [sig]);
-
-  if (err) {
-    throw new Error(err);
-  }
-
-  return newInfo;
-};
-
 export const updateDataStoreMetadata = async ({
   rootHash,
   label,
   description,
   bytes,
 }: DataStoreMetadata) => {
-  const storeInfo = await getLatestStoreInfo();
+  const storeId = findStoreId();
+  if (!storeId) {
+    throw new Error("No data store found in the current directory");
+  }
+
+  const { latestInfo } = await getLatestStoreInfo(storeId);
 
   const peer = await getPeer();
   const ownerPublicKey = await getPublicSyntheticKey();
 
   // TODO: to make this work for all users we need a way to get the authorized writer public key as well and not just assume its the owner
   const updateStoreResponse = updateStoreMetadata(
-    storeInfo,
+    latestInfo,
     rootHash,
     label,
     description,
@@ -554,14 +367,14 @@ export const updateDataStoreMetadata = async ({
 export const getLocalRootHistory = async (): Promise<
   RootHistoryItem[] | undefined
 > => {
-  const launcherId = await findLauncherId(DIG_FOLDER_PATH);
+  const storeId = findStoreId();
 
-  if (!launcherId) {
+  if (!storeId) {
     throw new Error("No launcher ID found in the current directory");
   }
 
   // Load manifest file
-  const manifestFilePath = getManifestFilePath(launcherId);
+  const manifestFilePath = getManifestFilePath(storeId.toString("hex"));
   if (!fs.existsSync(manifestFilePath)) {
     console.error("Manifest file not found");
     return undefined;
@@ -580,14 +393,14 @@ export const getLocalRootHistory = async (): Promise<
 };
 
 export const validateStore = async (): Promise<boolean> => {
-  const launcherId = await findLauncherId(DIG_FOLDER_PATH);
+  const storeId = findStoreId();
 
-  if (!launcherId) {
+  if (!storeId) {
     console.error("No launcher ID found in the current directory");
     return false;
   }
 
-  const rootHistory = await getRootHistory(Buffer.from(launcherId, "hex"));
+  const rootHistory = await getRootHistory(storeId);
 
   if (process.env.DIG_DEBUG == "1") {
     console.log(rootHistory);
@@ -598,7 +411,7 @@ export const validateStore = async (): Promise<boolean> => {
   }
 
   // Load manifest file
-  const manifestFilePath = getManifestFilePath(launcherId);
+  const manifestFilePath = getManifestFilePath(storeId.toString("hex"));
   if (!fs.existsSync(manifestFilePath)) {
     console.error("Manifest file not found");
     return false;
@@ -640,7 +453,7 @@ export const validateStore = async (): Promise<boolean> => {
   for (const rootHash of manifestHashes) {
     const datFilePath = path.join(
       DIG_FOLDER_PATH,
-      launcherId,
+      storeId.toString("hex"),
       `${rootHash}.dat`
     );
 
@@ -664,7 +477,7 @@ export const validateStore = async (): Promise<boolean> => {
     for (const [fileKey, fileData] of Object.entries(datFileContent.files)) {
       const integrityCheck = validateFileSha256(
         fileData.sha256,
-        path.join(DIG_FOLDER_PATH, launcherId, "data")
+        path.join(DIG_FOLDER_PATH, storeId.toString("hex"), "data")
       );
 
       if (process.env.DIG_DEBUG == "1") {

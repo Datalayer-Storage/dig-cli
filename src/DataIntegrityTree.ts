@@ -53,7 +53,7 @@ export interface DataIntegrityLayerOptions {
 /**
  * DataStoreManager class to manage Merkle tree operations.
  */
-class DataIntegrityLayer {
+class DataIntegrityTree {
   private storeId: string;
   private storeBaseDir: string;
   private storeDir: string;
@@ -634,4 +634,4 @@ class DataIntegrityLayer {
   }
 }
 
-export { DataIntegrityLayer };
+export { DataIntegrityTree };

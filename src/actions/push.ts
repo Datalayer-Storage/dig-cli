@@ -6,13 +6,7 @@ import {
   doesHostExistInMirrors,
   createServerCoin,
 } from "../blockchain/server_coin";
-import { createKeyOwnershipSignature } from "../blockchain/signature";
-import {
-  findLauncherId,
-  getLocalRootHistory,
-  getStoreCreatedAtHeight,
-} from "../blockchain/datastore";
-import { getPublicSyntheticKey } from "../blockchain/keys";
+import { findStoreId, getLocalRootHistory } from "../blockchain/datastore";
 import { uploadDirectory } from "../upload";
 
 // Helper function to check if necessary files exist
@@ -62,41 +56,6 @@ const getUploadDetails = async (
   );
 };
 
-// Helper function to get the signed upload URL
-const getUploadUrl = async (
-  origin: string,
-  username: string,
-  password: string,
-  nonce: string
-) => {
-  return waitForPromise(
-    async () => {
-      try {
-        const keyOwnershipSig = await createKeyOwnershipSignature(nonce);
-        const publicSyntheticKey = await getPublicSyntheticKey();
-        const { createdAtHeight, createdAtHash } =
-          await getStoreCreatedAtHeight();
-        const request = superagent
-          .post(origin)
-          .auth(username, password)
-          .send({
-            key_ownership_sig: keyOwnershipSig,
-            public_key: publicSyntheticKey.toString("hex"),
-          })
-          .set("x-created-at-height", String(createdAtHeight))
-          .set("x-created-at-hash", createdAtHash.toString("hex"));
-        const response = await logApiRequest(request);
-        return response.body.uploadUrl;
-      } catch (error: any) {
-        return undefined;
-      }
-    },
-    "Getting signed upload URL",
-    "Proceeding to upload store.",
-    "Failed to get signed upload URL"
-  );
-};
-
 // Main push function
 export const push = async (): Promise<void> => {
   try {
@@ -106,7 +65,7 @@ export const push = async (): Promise<void> => {
     const origin = new URL(config.origin);
 
     const { username, password } = await promptCredentials(origin.hostname);
-    const storeId = await findLauncherId(DIG_FOLDER_PATH);
+    const storeId = await findStoreId();
 
     if (!storeId) {
       throw new Error(
@@ -114,7 +73,7 @@ export const push = async (): Promise<void> => {
       );
     }
 
-    if (!origin.pathname.includes(storeId)) {
+    if (!origin.pathname.includes(storeId.toString("hex"))) {
       throw new Error("The origin URL is pointing to the wrong store id.");
     }
 
@@ -169,29 +128,26 @@ export const push = async (): Promise<void> => {
       );
     }
 
-    const signedUploadUrl = await getUploadUrl(
+    await uploadDirectory(
       config.origin,
       username,
       password,
-      nonce
+      nonce,
+      DIG_FOLDER_PATH,
+      storeId.toString("hex"),
+      generationIndex
     );
-
-    if (!signedUploadUrl) {
-      throw new Error("Failed to get the signed upload URL.");
-    }
-
-    await uploadDirectory(signedUploadUrl, storeId, origin, DIG_FOLDER_PATH, generationIndex + 1);
 
     // Ensure server coin exists for the origin
     const serverCoinExists = await doesHostExistInMirrors(
-      storeId,
+      storeId.toString("hex"),
       `${origin.protocol}//${origin.hostname}`
     );
     if (!serverCoinExists) {
-   //   console.log(`Creating server coin for ${origin.hostname}`);
-  //    await createServerCoin(storeId, [
-   //     `${origin.protocol}//${origin.hostname}`,
-   //   ]);
+      console.log(`Creating server coin for ${origin.hostname}`);
+      await createServerCoin(storeId.toString("hex"), [
+        `${origin.protocol}//${origin.hostname}`,
+      ]);
     }
   } catch (error: any) {
     console.error(`Push failed: ${error.message}`);

@@ -4,11 +4,12 @@ import * as crypto from "crypto";
 import * as readline from "readline";
 import keytar from "keytar";
 import superagent from "superagent";
-import { DataIntegrityLayer } from "./DataIntegrityLayer";
+import { DataIntegrityTree } from "./DataIntegrityTree";
 import { FileDetails, Credentials } from "./types";
 import ignore from "ignore";
 import zlib from "zlib";
 import { createSpinner, Spinner } from "nanospinner";
+import { uploadDirectory } from "./upload";
 
 /**
  * Calculate the SHA-256 hash of a buffer using the crypto module.
@@ -28,7 +29,7 @@ export const calculateSHA256 = (buffer: Buffer): string => {
  * @param baseDir - The base directory for relative paths.
  */
 export const addDirectory = async (
-  datalayer: DataIntegrityLayer,
+  datalayer: DataIntegrityTree,
   dirPath: string,
   baseDir: string = dirPath
 ): Promise<void> => {
@@ -92,7 +93,7 @@ export const promptCredentials = async (host: string): Promise<Credentials> => {
   const storedPassword = await keytar.getPassword(host, "password");
 
   if (storedUsername && storedPassword) {
-    console.log(`Using stored credentials for ${host}`);
+    console.log(`Using stored credentials for origin`);
     return { username: storedUsername, password: storedPassword };
   }
 
@@ -415,9 +416,6 @@ export const getDeltaFiles = async (
 
   const filesInvolved: string[] = [];
 
-  // Include the manifest file
-  filesInvolved.push(manifestFilePath);
-
   // Include the height.dat file at the top of the directory
   const heightDatFilePath = path.join(directoryPath, storeId, "height.dat");
   if (fs.existsSync(heightDatFilePath)) {
@@ -448,9 +446,9 @@ export const getDeltaFiles = async (
     filesInvolved.push(datFilePath);
 
     // Collect all files involved, ensuring correct paths
-    for (const sha256 of Object.keys(datFileContent.files)) {
+    for (const file of Object.keys(datFileContent.files)) {
       const filePath = getFilePathFromSha256(
-        sha256,
+        datFileContent.files[file].sha256,
         path.join(directoryPath, storeId, "data")
       );
       filesInvolved.push(filePath);
@@ -461,6 +459,11 @@ export const getDeltaFiles = async (
     console.log("Files involved in the delta:");
     console.table(filesInvolved);
   }
+
+  // list the manifest file last, this actually
+  // helps with upload because by overriding the manifest file last, 
+  // the store can still be considered valid even when the upload is interrupted
+  filesInvolved.push(manifestFilePath);
 
   return filesInvolved;
 };

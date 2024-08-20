@@ -1,9 +1,8 @@
 import * as fs from "fs";
 import * as path from "path";
 import { createDataLayerStore } from "../blockchain/datalayer";
-import { serializeStoreInfo } from "../blockchain/datastore";
-import { DataIntegrityLayer, DataIntegrityLayerOptions } from "../DataIntegrityLayer";
-import { DIG_FOLDER_PATH, COIN_STATE_FILE_PATH, MIN_HEIGHT, getHeightFilePath } from "../config";
+import { DataIntegrityTree, DataIntegrityLayerOptions } from "../DataIntegrityTree";
+import { DIG_FOLDER_PATH, MIN_HEIGHT, getHeightFilePath } from "../config";
 import { askToDeleteAndReinit } from "../prompts";
 import { CreateStoreUserInputs } from "../types";
 import { getPeer } from "../blockchain/peer";
@@ -31,26 +30,22 @@ export const init = async (inputs: CreateStoreUserInputs = {}): Promise<void> =>
     console.log("Created dig.config.json file.");
   }
 
+  const peer = await getPeer();
+  const currentHeight = (await peer.getPeak()) || MIN_HEIGHT;
+  const currentHeaderHash = await peer.getHeaderHash(currentHeight);
+
+  
+
   const storeInfo = await createDataLayerStore(inputs);
   if (storeInfo) {
     const storeId = storeInfo.launcherId.toString("hex");
-
-    // Serialize storeInfo to state.dat
-    const serializedStoreInfo = serializeStoreInfo(storeInfo);
-    fs.writeFileSync(COIN_STATE_FILE_PATH, JSON.stringify(serializedStoreInfo, null, 4));
 
     const options: DataIntegrityLayerOptions = {
       storageMode: "local",
       storeDir: DIG_FOLDER_PATH,
     };
 
-    new DataIntegrityLayer(storeId, options);
-
-    const peer = await getPeer();
-    const currentHeight = (await peer.getPeak()) || MIN_HEIGHT;
-    const currentHeaderHash = await peer.getHeaderHash(currentHeight);
-
-    console.log(`Store initialized at Height: ${currentHeight} | ${currentHeaderHash.toString('hex')}`);
+    new DataIntegrityTree(storeId, options);
 
     fs.writeFileSync(
       getHeightFilePath(storeInfo.launcherId.toString("hex")),
@@ -59,6 +54,8 @@ export const init = async (inputs: CreateStoreUserInputs = {}): Promise<void> =>
         createdAtHash: currentHeaderHash.toString("hex"),
       })
     );
+
+    console.log(`Store initialized at Height: ${currentHeight} | ${currentHeaderHash.toString('hex')}`);
   } else {
     console.log("Failed to initialize the data layer store.");
     fs.rmSync(DIG_FOLDER_PATH, { recursive: true, force: true });

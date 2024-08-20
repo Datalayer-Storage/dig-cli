@@ -1,5 +1,5 @@
 import * as fs from "fs";
-import { verifyConnectionString } from "../utils";
+import { verifyConnectionString } from "../utils.disabled";
 import { CONFIG_FILE_PATH } from "../config";
 import { Config } from "../types";
 

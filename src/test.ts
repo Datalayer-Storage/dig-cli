@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as crypto from "crypto";
 import * as os from "os";
-import { DataIntegrityTree } from "./DataIntegrityTree"; // Ensure this import path is correct based on your project structure
+import { DataIntegrityTree } from "./DataIntegrityTree";
 
 /**
  * Calculate the SHA-256 hash of a buffer using the crypto module.
@@ -55,7 +55,7 @@ const folderPath = path.resolve(
 ); // Replace with your folder path
 const storeId =
   "782dd222ed9510e709ed700ad89e15e398550acf92e8d8ee285999019ff4873a"; // Replace with your storeId or generate one
-const manager = new DataIntegrityLayer(storeId, {storageMode: 'local', storeDir: path.join(os.homedir(), ".dig", "stores")});
+const manager = new DataIntegrityTree(storeId, {storageMode: 'local', storeDir: path.join(os.homedir(), ".dig", "stores")});
 //manager.deleteAllLeaves();
 const currentRoot = manager.getRoot();
 

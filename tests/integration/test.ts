@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as crypto from "crypto";
 import * as os from "os";
-import { DataIntegrityTree } from "./DataIntegrityTree";
+import { DataIntegrityTree } from "../../src/DataIntegrityTree";
 
 /**
  * Calculate the SHA-256 hash of a buffer using the crypto module.

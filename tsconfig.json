@@ -9,7 +9,7 @@
       "outDir": "./dist",
       "rootDir": "./src"
     },
-    "include": ["src/**/*.ts", "src/utils.disabled"],
+    "include": ["src/**/*.ts", "src/utils.disabled", "tests/integration/test.ts"],
     "exclude": ["node_modules", "dist"]
   }
   

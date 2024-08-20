@@ -3,7 +3,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as crypto from "crypto";
 import { Readable } from "stream";
-import { MerkleManager } from "./src/MerkleManager";
+import { DataIntegrityTree } from "../src/DataIntegrityTree";
 import { describe, it, beforeEach, afterEach } from "mocha";
 
 const TEST_STORE_ID = "a".repeat(64);
@@ -11,10 +11,10 @@ const TEST_KEY = "test_key";
 const TEST_DATA = "This is some test data";
 
 describe("MerkleManager", () => {
-  let merkleManager: MerkleManager;
+  let merkleManager: DataIntegrityTree;
 
   beforeEach(() => {
-    merkleManager = new MerkleManager(TEST_STORE_ID);
+    merkleManager = new DataIntegrityTree(TEST_STORE_ID);
   });
 
   afterEach(() => {

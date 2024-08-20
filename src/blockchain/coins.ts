@@ -7,7 +7,7 @@ import {
   getCoinId,
 } from "datalayer-driver";
 import { getOwnerPuzzleHash } from "./keys";
-import { MIN_HEIGHT, MIN_HEIGHT_HEADER_HASH } from "../config";
+import { MIN_HEIGHT, MIN_HEIGHT_HEADER_HASH } from "../utils/config";
 import { createSpinner } from "nanospinner";
 
 export const DEFAULT_FEE_COIN_COST = 64_000_000;

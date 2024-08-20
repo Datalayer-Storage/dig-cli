@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { createDataLayerStore } from "../blockchain/datalayer";
 import { DataIntegrityTree, DataIntegrityLayerOptions } from "../DataIntegrityTree";
-import { DIG_FOLDER_PATH, MIN_HEIGHT, getHeightFilePath } from "../config";
+import { DIG_FOLDER_PATH, MIN_HEIGHT, getHeightFilePath } from "../utils/config";
 import { askToDeleteAndReinit } from "../prompts";
 import { CreateStoreUserInputs } from "../types";
 import { getPeer } from "../blockchain/peer";

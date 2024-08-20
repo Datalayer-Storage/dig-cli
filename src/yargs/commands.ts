@@ -1,9 +1,9 @@
 import yargs from "yargs/yargs";
 import { hideBin } from "yargs/helpers";
 import { handlers } from "./handlers";
-import { ensureDigConfig } from "./config";
-import { CreateStoreUserInputs } from './types';
-import { checkStoreWritePermissions } from "./actions/middleware";
+import { ensureDigConfig } from "../utils/config";
+import { CreateStoreUserInputs } from '../types';
+import { checkStoreWritePermissions } from "../actions/middleware";
 
 // Configure and run Yargs
 export async function setupCommands() {

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { setupCommands } from "./commands";
+import { setupCommands } from "./yargs/commands";
 
 // Run the command setup
 setupCommands();

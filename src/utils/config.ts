@@ -1,6 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
-import { DigConfig } from './types';
+import { DigConfig } from '../types';
 
 export const NETWORK_AGG_SIG_DATA = 
   "ccd5bb71183532bff220ba46c268991a3ff07eb358e8255a65c30a2dce0e5fbb";

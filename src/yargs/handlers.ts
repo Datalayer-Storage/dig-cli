@@ -1,6 +1,6 @@
-import { getOrCreateMnemonic, deleteMnemonic, getMnemonic, importMnemonic } from "./blockchain/mnemonic";
-import { commit, push, pull, clone, setRemote, init, validate } from "./actions";
-import { CreateStoreUserInputs } from './types';
+import { getOrCreateMnemonic, deleteMnemonic, getMnemonic, importMnemonic } from "../blockchain/mnemonic";
+import { commit, push, pull, clone, setRemote, init, validate } from "../actions";
+import { CreateStoreUserInputs } from '../types';
 
 // Command handlers
 export const handlers = {

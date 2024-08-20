@@ -1,13 +1,13 @@
 import * as fs from "fs";
 import superagent from "superagent";
 import { promptCredentials, logApiRequest, waitForPromise } from "../utils";
-import { DIG_FOLDER_PATH, CONFIG_FILE_PATH } from "../config";
+import { DIG_FOLDER_PATH, CONFIG_FILE_PATH } from "../utils/config";
 import {
   doesHostExistInMirrors,
   createServerCoin,
 } from "../blockchain/server_coin";
 import { findStoreId, getLocalRootHistory } from "../blockchain/datastore";
-import { uploadDirectory } from "../upload";
+import { uploadDirectory } from "../utils/upload";
 
 // Helper function to check if necessary files exist
 const checkRequiredFiles = (): void => {

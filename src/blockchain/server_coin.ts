@@ -1,6 +1,6 @@
 import { bytesEqual, toCoinId, Wallet, Peer } from "chia-server-coin";
 import { getServerCoinPeer } from "./peer";
-import { NETWORK_AGG_SIG_DATA } from "../config";
+import { NETWORK_AGG_SIG_DATA } from "../utils/config";
 import { getMnemonic } from "./mnemonic";
 
 const stringToUint8Array = (str: String) => {

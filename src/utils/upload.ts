@@ -2,11 +2,11 @@ import * as fs from "fs";
 import * as path from "path";
 import crypto from "crypto";
 import { MultiBar, Presets } from "cli-progress";
-import { getDeltaFiles } from "./utils";
+import { getDeltaFiles } from ".";
 import superagent from "superagent";
-import { createKeyOwnershipSignature } from "./blockchain/signature";
-import { getPublicSyntheticKey } from "./blockchain/keys";
-import { getStoreCreatedAtHeight } from "./blockchain/datastore";
+import { createKeyOwnershipSignature } from "../blockchain/signature";
+import { getPublicSyntheticKey } from "../blockchain/keys";
+import { getStoreCreatedAtHeight } from "../blockchain/datastore";
 
 // Function to request a signed upload URL
 const getUploadUrl = async (

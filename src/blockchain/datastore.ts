@@ -27,7 +27,7 @@ import {
   DIG_FOLDER_PATH,
   getManifestFilePath,
   getHeightFilePath,
-} from "../config";
+} from "../utils/config";
 import { selectUnspentCoins, calculateFeeForCoinSpends } from "./coins";
 import { RootHistoryItem, DatFile } from "../types";
 import { validateFileSha256 } from "../utils";

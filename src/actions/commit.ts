@@ -13,7 +13,7 @@ import {
   DIG_FOLDER_PATH,
   getManifestFilePath,
   loadDigConfig,
-} from "../config";
+} from "../utils/config";
 import { waitForConfirmation } from "../blockchain/coins";
 import { getPeer } from "../blockchain/peer";
 

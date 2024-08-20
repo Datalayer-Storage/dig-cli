@@ -1,6 +1,6 @@
 import * as fs from "fs";
 import { verifyConnectionString } from "../utils.disabled";
-import { CONFIG_FILE_PATH } from "../config";
+import { CONFIG_FILE_PATH } from "../utils/config";
 import { Config } from "../types";
 
 export const setRemote = ({ origin }: { origin: string }): void => {

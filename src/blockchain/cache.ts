@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { DataStoreInfo } from "datalayer-driver";
-import { DIG_FOLDER_PATH } from "../config";
+import { DIG_FOLDER_PATH } from "../utils/config";
 import { serializeStoreInfo, deserializeStoreInfo } from "./serialization";
 
 // Define a file path to store the cached data

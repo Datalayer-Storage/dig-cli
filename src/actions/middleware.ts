@@ -2,7 +2,7 @@ import path from "path";
 import fs from "fs";
 import { hasMetadataWritePermissions } from "../blockchain/datastore";
 import { Config } from "../types";
-import { CONFIG_FILE_PATH, DIG_FOLDER_PATH } from "../config";
+import { CONFIG_FILE_PATH, DIG_FOLDER_PATH } from "../utils/config";
 import { isCoinSpendable } from "../blockchain/coins";
 import { getPeer } from "../blockchain/peer";
 import { findStoreId, getLatestStoreInfo } from "../blockchain/datastore";

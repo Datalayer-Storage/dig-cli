@@ -1,6 +1,5 @@
 import * as fs from "fs";
 import * as path from "path";
-import crypto from "crypto";
 import { MultiBar, Presets } from "cli-progress";
 import { getDeltaFiles } from ".";
 import superagent from "superagent";
@@ -15,12 +14,13 @@ const getUploadUrl = async (
   password: string,
   nonce: string,
   filename: string,
-  sha256: string
 ): Promise<string | undefined> => {
   try {
     const keyOwnershipSig = await createKeyOwnershipSignature(nonce);
     const publicSyntheticKey = await getPublicSyntheticKey();
     const { createdAtHeight, createdAtHash } = await getStoreCreatedAtHeight();
+
+    console.log('!', publicSyntheticKey.toString("hex"))
 
     const response = await superagent
       .post(origin)
@@ -28,11 +28,12 @@ const getUploadUrl = async (
       .send({
         key_ownership_sig: keyOwnershipSig,
         public_key: publicSyntheticKey.toString("hex"),
-        filename: filename.replace(/\\/g, "/"),
-        sha256, // Include the SHA-256 checksum in the request
+        filename: filename.replace(/\\/g, "/")
       })
       .set("x-created-at-height", String(createdAtHeight))
       .set("x-created-at-hash", createdAtHash.toString("hex"));
+
+    console.log(response.body);
 
     return response.body.uploadUrl;
   } catch (error: any) {
@@ -44,7 +45,6 @@ const getUploadUrl = async (
 // Function to upload a single file using the signed URL
 const uploadFile = async (
   filePath: string,
-  relativePath: string,
   uploadUrl: string
 ): Promise<void> => {
   try {
@@ -100,24 +100,19 @@ export const uploadDirectory = async (
     for (const filePath of filesToUpload) {
       const relativePath = path.relative(storeDir, filePath).replace(/\\/g, "/"); // Convert to forward slashes
 
-      // Calculate the SHA-256 checksum for the file
-      const fileBuffer = fs.readFileSync(filePath);
-      const fileChecksum = crypto.createHash("sha256").update(fileBuffer).digest("hex");
-
       const uploadUrl = await getUploadUrl(
         origin,
         username,
         password,
         nonce,
         relativePath,
-        fileChecksum // Pass the checksum when requesting the signed URL
       );
 
       if (!uploadUrl) {
         throw new Error("Could not obtain upload URL");
       }
 
-      await uploadFile(filePath, relativePath, uploadUrl);
+      await uploadFile(filePath, relativePath);
       uploadBar.increment();
     }
 

@@ -42,7 +42,7 @@ const isHexString = (str: string): boolean => {
   return /^[0-9a-fA-F]+$/.test(str) && str.length % 2 === 0;
 };
 
-export interface DataIntegrityLayerOptions {
+export interface DataIntegrityTreeOptions {
   storeDir?: string;
   storageMode?: "local" | "unified";
   // This is a hack to prevent an empty root hash from
@@ -61,7 +61,7 @@ class DataIntegrityTree {
   public files: Map<string, { hash: string; sha256: string }>;
   private tree: MerkleTree;
 
-  constructor(storeId: string, options: DataIntegrityLayerOptions = {}) {
+  constructor(storeId: string, options: DataIntegrityTreeOptions = {}) {
     if (!isHexString(storeId) || storeId.length !== 64) {
       throw new Error("storeId must be a 64 char hex string");
     }

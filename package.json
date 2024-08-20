@@ -2,17 +2,28 @@
   "name": "dapplayer",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "type": "commonjs",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "dig": "./dist/index.js"
+  },
   "scripts": {
-    "build": "tsc",
+    "build": "rm -rf dist && tsc",
     "start": "ts-node src/index.ts",
     "server": "ts-node src/server.ts",
-    "test": "mocha -r ts-node/register tests.ts"
+    "test": "mocha -r ts-node/register tests.ts",
+    "release": "standard-version",
+    "postrelease": "npm run build && git push --follow-tags && npm publish"
   },
   "author": "",
   "license": "ISC",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "dependencies": {
-    "archiver": "^7.0.1",
     "bip39": "^3.1.0",
     "chia-bls": "^1.0.2",
     "chia-config-loader": "^1.0.1",
@@ -20,26 +31,18 @@
     "chia-server-coin": "^0.0.4",
     "chia-wallet": "^1.0.18",
     "cli-progress": "^3.12.0",
-    "cli-spinners": "^3.1.0",
     "crypto-js": "^4.2.0",
     "datalayer-driver": "^0.1.17",
-    "dns": "^0.2.2",
     "ignore": "^5.3.2",
     "inquirer": "^10.1.8",
     "keytar": "^7.9.0",
     "lodash": "^4.17.21",
-    "log-update": "^6.1.0",
     "merkletreejs": "^0.4.0",
     "nanospinner": "^1.1.0",
-    "ora": "^8.0.1",
-    "path": "^0.12.7",
-    "ping": "^0.4.4",
     "superagent": "^10.0.0",
-    "yargs": "^17.7.2",
-    "zlib": "^1.0.5"
+    "yargs": "^17.7.2"
   },
   "devDependencies": {
-    "@types/archiver": "^6.0.2",
     "@types/chai": "^4.3.17",
     "@types/cli-progress": "^3.11.6",
     "@types/crypto-js": "^4.2.2",
@@ -48,11 +51,11 @@
     "@types/lodash": "^4.17.7",
     "@types/mocha": "^10.0.7",
     "@types/node": "^22.1.0",
-    "@types/ping": "^0.4.4",
     "@types/superagent": "^8.1.8",
     "@types/yargs": "^17.0.33",
     "chai": "^5.1.1",
     "mocha": "^10.7.0",
+    "standard-version": "^9.5.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.5.4"
   }

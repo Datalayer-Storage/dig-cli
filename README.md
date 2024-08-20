@@ -1,12 +1,12 @@
 
-# DataIntegrityLayer
+# DataIntegrityTree
 
-`DataIntegrityLayer` is a TypeScript class designed to efficiently organize and manage any arbitrary file data using a Merkle tree. A Merkle tree is a cryptographic data structure that allows for secure and efficient verification of data integrity. By organizing files into a Merkle tree, `DataIntegrityLayer` enables you to verify that a specific piece of data belongs to a dataset and ensures that the data has not been altered.
+`DataIntegrityTree` is a TypeScript class designed to efficiently organize and manage any arbitrary file data using a Merkle tree. A Merkle tree is a cryptographic data structure that allows for secure and efficient verification of data integrity. By organizing files into a Merkle tree, `DataIntegrityTree` enables you to verify that a specific piece of data belongs to a dataset and ensures that the data has not been altered.
 
 This class provides methods to store, retrieve, and verify data, making it particularly useful in scenarios where data integrity is critical, such as distributed systems, blockchain, or secure file storage.
 
 ## Store ID
-The storeId is a 64-character hexadecimal string that uniquely represents a data store within DataIntegrityLayer. This ID is crucial as it ensures that each data store is distinct and isolated. While the storeId can be generated from any source, it is important to ensure that storeIds are generated in a manner that guarantees their uniqueness. This can typically be achieved using cryptographic hash functions or UUIDs. The uniqueness of storeIds is vital to prevent data collisions and ensure that each data store maintains its integrity independently.
+The storeId is a 64-character hexadecimal string that uniquely represents a data store within DataIntegrityTree. This ID is crucial as it ensures that each data store is distinct and isolated. While the storeId can be generated from any source, it is important to ensure that storeIds are generated in a manner that guarantees their uniqueness. This can typically be achieved using cryptographic hash functions or UUIDs. The uniqueness of storeIds is vital to prevent data collisions and ensure that each data store maintains its integrity independently.
 
 ## Features
 
@@ -19,7 +19,7 @@ The storeId is a 64-character hexadecimal string that uniquely represents a data
 
 ## Filesystem Structure
 
-The `DataIntegrityLayer` class organizes files in a hierarchical directory structure to efficiently manage a large number of files. This approach enhances performance and scalability, especially when dealing with millions of files.
+The `DataIntegrityTree` class organizes files in a hierarchical directory structure to efficiently manage a large number of files. This approach enhances performance and scalability, especially when dealing with millions of files.
 
 ### Storage Modes
 
@@ -33,7 +33,7 @@ The manifest file (`manifest.dat`) stores the history of Merkle tree root hashes
 
 ### Merkle Tree Data Files
 
-Serialized Merkle trees are stored as `.dat` files named after their root hash. This allows the `DataIntegrityLayer` to load the state of the Merkle tree at any given point in time.
+Serialized Merkle trees are stored as `.dat` files named after their root hash. This allows the `DataIntegrityTree` to load the state of the Merkle tree at any given point in time.
 
 ### Binary Files Storage
 
@@ -44,10 +44,10 @@ Binary files are stored in a directory structure that reflects the first few cha
 ### Importing and Initializing
 
 ```typescript
-import { DataIntegrityLayer } from './DataIntegrityLayer';
+import { DataIntegrityTree } from './DataIntegrityTree';
 
 const storeId = 'a'.repeat(64); // A 64-character hexadecimal string
-const dataLayer = new DataIntegrityLayer(storeId, { storageMode: 'local' });
+const dataLayer = new DataIntegrityTree(storeId, { storageMode: 'local' });
 ```
 
 ### Upsert a Key
@@ -149,7 +149,7 @@ console.log('Deleted keys:', Array.from(diff.deleted.keys()));
 
 ## Methods
 
-- **constructor(storeId: string, options: DataIntegrityLayerOptions = {})**: Initializes a new `DataIntegrityLayer` instance.
+- **constructor(storeId: string, options: DataIntegrityTreeOptions = {})**: Initializes a new `DataIntegrityTree` instance.
 - **upsertKey(readStream: Readable, key: string): Promise<void>**: Stores a binary stream in the Merkle tree.
 - **verifyKeyIntegrity(sha256: string, rootHash: string): Promise<boolean>**: Verifies the integrity of a file and checks if it is part of the specified Merkle root.
 - **getValueStream(hexKey: string, rootHash?: string): Readable**: Retrieves a readable stream for a file.

@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import { createDataLayerStore } from "../blockchain/datalayer";
-import { DataIntegrityTree, DataIntegrityLayerOptions } from "../DataIntegrityTree";
+import { DataIntegrityTree, DataIntegrityTreeOptions } from "../DataIntegrityTree";
 import { DIG_FOLDER_PATH, MIN_HEIGHT, getHeightFilePath } from "../utils/config";
 import { askToDeleteAndReinit } from "../prompts";
 import { CreateStoreUserInputs } from "../types";
@@ -40,7 +40,7 @@ export const init = async (inputs: CreateStoreUserInputs = {}): Promise<void> =>
   if (storeInfo) {
     const storeId = storeInfo.launcherId.toString("hex");
 
-    const options: DataIntegrityLayerOptions = {
+    const options: DataIntegrityTreeOptions = {
       storageMode: "local",
       storeDir: DIG_FOLDER_PATH,
     };

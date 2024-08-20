@@ -141,39 +141,43 @@ export const getLatestStoreInfo = async (
   latestHash: Buffer;
 }> => {
   const peer = await getPeer();
+  const cachedInfo = getCachedStoreInfo(storeId.toString("hex"));
+
+  if (cachedInfo) {
+    try {
+      const {
+        latestInfo: previousInfo,
+        latestHeight: previousHeight,
+        latestHash: previousHash,
+      } = cachedInfo;
+
+      const { latestInfo, latestHeight } = await peer.syncStore(
+        previousInfo,
+        previousHeight,
+        previousHash,
+        false
+      );
+
+      const latestHash = await peer.getHeaderHash(latestHeight);
+
+      // Cache the latest store info in the file system
+      cacheStoreInfo(
+        storeId.toString("hex"),
+        latestInfo,
+        latestHeight,
+        latestHash
+      );
+
+      return { latestInfo, latestHeight, latestHash };
+    } catch {
+      // Any error usually indicates unknown coin meaning no new coin spend since last cache
+      return cachedInfo;
+    }
+  }
 
   const heightFilePath = getHeightFilePath(storeId.toString("hex"));
   const heightFile = fs.readFileSync(heightFilePath, "utf-8");
-  const { createdAtHeight, createdAtHash } = JSON.parse(heightFile);
-
-  // Check if the store info is already cached
-  const cachedInfo = getCachedStoreInfo(storeId.toString("hex"));
-  if (cachedInfo) {
-    const {
-      latestInfo: previousInfo,
-      // latestHeight: previousHeight,
-      // latestHash: previousHash,
-    } = cachedInfo;
-
-    const { latestInfo, latestHeight } = await peer.syncStore(
-      previousInfo,
-      createdAtHeight,
-      Buffer.from(createdAtHash, "hex"),
-      false
-    );
-
-    const latestHash = await peer.getHeaderHash(latestHeight);
-
-    // Cache the latest store info in the file system
-    cacheStoreInfo(
-      storeId.toString("hex"),
-      latestInfo,
-      latestHeight,
-      latestHash
-    );
-
-    return { latestInfo, latestHeight, latestHash };
-  }
+  const { createdAtHeight, createdAtHash } = JSON.parse(heightFile || '{}');
 
   // If not cached, retrieve the latest store info from the blockchain
   const { latestInfo, latestHeight } = await peer.syncStoreFromLauncherId(

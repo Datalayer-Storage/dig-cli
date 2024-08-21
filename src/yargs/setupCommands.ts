@@ -1,7 +1,17 @@
 import yargs from "yargs/yargs";
 import { hideBin } from "yargs/helpers";
 import { setupMiddleware } from "./middleware";
-import { initCommand, commitCommand, pushCommand, pullCommand, cloneCommand, storeCommand, remoteSetCommand, keysCommand } from "./commands";
+import {
+  initCommand,
+  commitCommand,
+  pushCommand,
+  pullCommand,
+  cloneCommand,
+  storeCommand,
+  remoteSetCommand,
+  keysCommand,
+  loginCommand
+} from "./commands";
 
 // Configure and run Yargs
 export async function setupCommands() {
@@ -19,6 +29,7 @@ export async function setupCommands() {
   storeCommand(parser);
   remoteSetCommand(parser);
   keysCommand(parser);
+  loginCommand(parser);
 
   // Set default command and help
   parser

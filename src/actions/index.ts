@@ -4,5 +4,6 @@ export * from './middleware';
 export * from './push';
 export * from './remote';
 export * from './pull';
-export * from './commit';
+export * from './commit'
 export * from './validate';
+export * from './login';

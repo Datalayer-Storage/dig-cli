@@ -137,3 +137,12 @@ export function keysCommand(yargs: Argv<{}>) {
     }
   );
 }
+
+export function loginCommand(yargs: Argv<{}>) {
+  return yargs.command(
+      "login",
+      "Set datastore login credentials",
+      {},
+      handlers.login
+    );
+}

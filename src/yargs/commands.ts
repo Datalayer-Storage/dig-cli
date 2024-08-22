@@ -99,18 +99,18 @@ export function storeCommand(yargs: Argv<{}>) {
   );
 }
 
-export function remoteSetCommand(yargs: Argv<{}>) {
+export function remoteCommand(yargs: Argv<{}>) {
   // @ts-ignore
   return yargs.command<{ connectionString: string }>(
-    "remote set <connectionString>",
-    "Set a remote connection",
+    "remote set <originConnectionString>",
+    "Set a datastore remote origin",
     (yargs: Argv<{ connectionString: string }>) => {
       return yargs.positional("connectionString", {
         type: "string",
-        describe: "The connection string for the remote",
+        describe: "The connection string for the datastore remote origin",
       });
     },
-    handlers.setRemote
+    handlers.setRemote(connectionString)
   );
 }
 

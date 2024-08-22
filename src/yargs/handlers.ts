@@ -33,12 +33,10 @@ export const handlers = {
     console.log("Store remove executed");
   },
   setRemote: async (connectionString: string) => {
-   // await setRemote(connectionString);
-    console.log(`Remote set executed with connectionString: ${connectionString}`);
+    await setRemote({origin: connectionString});
   },
   validateStore: async () => {
     await validate();
-    console.log("Store validated");
   },
   manageStore: async (action: string) => {
     switch (action) {

@@ -40,3 +40,21 @@ export const promptCredentials = async (origin: string): Promise<Credentials> =>
 
   return { username, password };
 };
+
+export const clearCredentials = async (origin: string) => {
+  const username = await keytar.getPassword(origin, "username");
+
+  const usernameDeleted = await keytar.deletePassword(origin, "username");
+  if (!usernameDeleted) {
+    throw new Error('unable to delete username credential');
+  }
+
+  const passwordDeleted = await keytar.deletePassword(origin, "password");
+  if (!passwordDeleted){
+    throw new Error(`unable to delete password credential for user ${username}`);
+  }
+
+  if (usernameDeleted && passwordDeleted){
+    console.log('Logged out of', origin);
+  }
+}

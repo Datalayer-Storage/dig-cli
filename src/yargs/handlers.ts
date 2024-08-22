@@ -1,6 +1,7 @@
 import { getOrCreateMnemonic, deleteMnemonic, getMnemonic, importMnemonic } from "../blockchain/mnemonic";
 import {commit, push, pull, clone, setRemote, init, validate, login} from "../actions";
 import { CreateStoreUserInputs } from '../types';
+import {logout} from "../actions/logout";
 
 // Command handlers
 export const handlers = {
@@ -74,6 +75,9 @@ export const handlers = {
     }
   },
   login: async () => {
-    login();
+    await login();
+  },
+  logout: async () => {
+    await logout();
   }
 };

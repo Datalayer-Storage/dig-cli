@@ -10,7 +10,7 @@ import {
   storeCommand,
   remoteSetCommand,
   keysCommand,
-  loginCommand
+  loginCommand, logoutCommand
 } from "./commands";
 
 // Configure and run Yargs
@@ -30,6 +30,7 @@ export async function setupCommands() {
   remoteSetCommand(parser);
   keysCommand(parser);
   loginCommand(parser);
+  logoutCommand(parser);
 
   // Set default command and help
   parser

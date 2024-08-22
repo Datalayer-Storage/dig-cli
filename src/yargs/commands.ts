@@ -146,3 +146,12 @@ export function loginCommand(yargs: Argv<{}>) {
       handlers.login
     );
 }
+
+export function logoutCommand(yargs: Argv<{}>) {
+  return yargs.command(
+    "logout",
+    "Remove datastore login credentials",
+    {},
+    handlers.logout
+  );
+}

@@ -191,6 +191,6 @@ export function logoutCommand(yargs: Argv<{}>) {
     "logout",
     "Remove datastore login credentials",
     {},
-    handlers.logout
+    async () => await handlers.logout()
   );
 }

@@ -2,16 +2,16 @@ import path from "path";
 import fs from "fs";
 import { hasMetadataWritePermissions } from "../blockchain/datastore";
 import { Config } from "../types";
-import { CONFIG_FILE_PATH, DIG_FOLDER_PATH } from "../utils/config";
+import { CONFIG_FILE_PATH, DIG_FOLDER_PATH, getActiveStoreId } from "../utils/config";
 import { isCoinSpendable } from "../blockchain/coins";
 import { getPeer } from "../blockchain/peer";
-import { findStoreId, getLatestStoreInfo } from "../blockchain/datastore";
+import { getLatestStoreInfo } from "../blockchain/datastore";
 import { getCoinId } from "datalayer-driver";
 import { waitForPromise } from "../utils";
 
 export const checkStoreWritePermissions = async (): Promise<void> => {
   if (fs.existsSync(DIG_FOLDER_PATH)) {
-    const storeId = findStoreId();
+    const storeId = await getActiveStoreId();
 
     if (storeId) {
       try {
@@ -47,7 +47,7 @@ export const checkStoreWritePermissions = async (): Promise<void> => {
 
 export const ensureStoreIsSpendable = async (): Promise<void> => {
   const peer = await getPeer();
-  const storeId = findStoreId();
+  const storeId = await getActiveStoreId();
 
   if (!storeId) {
     throw new Error("Store ID not found. Please run init first.");

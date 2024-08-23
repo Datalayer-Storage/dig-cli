@@ -90,7 +90,6 @@ const retryUpload = async (
     } catch (error: any) {
       attempt++;
       if (attempt < maxRetries) {
-        console.warn(`Upload attempt ${attempt} failed. Retrying in ${delay / 1000} seconds...`);
         await new Promise((resolve) => setTimeout(resolve, delay));
         delay = Math.min(maxDelay, delay * delayMultiplier); // Less aggressive backoff with a max delay cap
       } else {

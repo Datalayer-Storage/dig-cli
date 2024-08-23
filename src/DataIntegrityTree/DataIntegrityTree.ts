@@ -355,7 +355,7 @@ class DataIntegrityTree {
   /**
    * Commit the current state of the Merkle tree.
    */
-  commit(): string {
+  commit(): string | undefined {
     const emptyRootHash =
       "0000000000000000000000000000000000000000000000000000000000000000";
     const rootHash =
@@ -367,7 +367,7 @@ class DataIntegrityTree {
 
     if (rootHash === latestRootHash && rootHash !== emptyRootHash) {
       console.log("No changes to commit. Aborting commit.");
-      throw new Error("No changes to commit.");
+      return undefined;
     }
 
     const manifestPath = path.join(this.storeDir, "manifest.dat");

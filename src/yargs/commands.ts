@@ -1,6 +1,6 @@
 import yargs, { Argv } from "yargs";
 import { handlers } from "./handlers";
-import { CreateStoreUserInputs } from '../types';
+import { CreateStoreUserInputs } from "../types";
 
 export function initCommand(yargs: Argv<{}>) {
   return yargs.command<CreateStoreUserInputs>(
@@ -68,12 +68,20 @@ export function pullCommand(yargs: Argv<{}>) {
 }
 
 export function cloneCommand(yargs: Argv<{}>) {
-  return yargs.command(
-    "clone",
-    "Clone a data store",
-    {},
-    handlers.clone
-  );
+    // @ts-ignore
+    return yargs.command<{ storeId: string }>(
+      "clone <storeId>",
+      "Clones a datastore from a remote origin",
+      (yargs: Argv<{ storeId: string }>) => {
+        return yargs.positional("storeId", {
+          type: "string",
+          describe: "The storId to clone down",
+        });
+      },
+      async (argv: {storeId: string}) => {
+        await handlers.clone(argv.storeId);
+      }
+    );
 }
 
 export function storeCommand(yargs: Argv<{}>) {
@@ -100,7 +108,7 @@ export function storeCommand(yargs: Argv<{}>) {
           type: "string",
           describe: "Specify an admin for the store",
         })
-        .strict();  // Ensures that only the defined options are accepted
+        .strict(); // Ensures that only the defined options are accepted
     },
     async (argv: { action: string }) => {
       await handlers.manageStore(argv.action);
@@ -110,16 +118,18 @@ export function storeCommand(yargs: Argv<{}>) {
 
 export function remoteCommand(yargs: Argv<{}>) {
   // @ts-ignore
-  return yargs.command<{ connectionString: string }>(
-    "remote set <originConnectionString>",
+  return yargs.command<{ peer: string }>(
+    "remote set <peer>",
     "Set a datastore remote origin",
-    (yargs: Argv<{ connectionString: string }>) => {
-      return yargs.positional("connectionString", {
+    (yargs: Argv<{ peer: string }>) => {
+      return yargs.positional("peer", {
         type: "string",
-        describe: "The connection string for the datastore remote origin",
+        describe: "The host of the peer to set as the remote origin",
       });
     },
-    handlers.setRemote(connectionString)
+    async (argv: {peer: string}) => {
+      await handlers.setRemote(argv.peer);
+    }
   );
 }
 
@@ -137,9 +147,10 @@ export function keysCommand(yargs: Argv<{}>) {
         })
         .option("mnemonic", {
           type: "string",
-          describe: "Mnemonic seed phrase for import (only for 'import' action)",
+          describe:
+            "Mnemonic seed phrase for import (only for 'import' action)",
         })
-        .strict();  // Ensures that only the defined options are accepted
+        .strict(); // Ensures that only the defined options are accepted
     },
     async (argv: { action: string; mnemonic?: string }) => {
       await handlers.manageKeys(argv.action, argv.mnemonic);
@@ -148,6 +159,7 @@ export function keysCommand(yargs: Argv<{}>) {
 }
 
 export function loginCommand(yargs: Argv<{}>) {
+  // @ts-ignore
   return yargs.command<{ user: string; pass: string }>(
     "login",
     "Set datastore login credentials",
@@ -166,9 +178,9 @@ export function loginCommand(yargs: Argv<{}>) {
             throw new Error("--user and --pass must be provided together");
           }
           return true;
-        })
+        });
     },
-    async (argv: {user: string, pass: string})=> {
+    async (argv: { user: string; pass: string }) => {
       await handlers.login(argv.user, argv.pass);
     }
   );
@@ -179,6 +191,6 @@ export function logoutCommand(yargs: Argv<{}>) {
     "logout",
     "Remove datastore login credentials",
     {},
-    await handlers.logout
+    handlers.logout
   );
 }

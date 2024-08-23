@@ -27,6 +27,7 @@ import {
   DIG_FOLDER_PATH,
   getManifestFilePath,
   getHeightFilePath,
+  getActiveStoreId
 } from "../utils/config";
 import { selectUnspentCoins, calculateFeeForCoinSpends } from "./coins";
 import { RootHistoryItem, DatFile } from "../types";
@@ -203,7 +204,7 @@ export const getStoreCreatedAtHeight = async (): Promise<{
   const defaultHash = Buffer.from(MIN_HEIGHT_HEADER_HASH, "hex");
 
   try {
-    const storeId = findStoreId();
+    const storeId = await getActiveStoreId();
     if (!storeId) {
       return { createdAtHeight: defaultHeight, createdAtHash: defaultHash };
     }
@@ -261,32 +262,6 @@ export const getRootHistory = async (
   return rootHistory;
 };
 
-/**
- * Finds the first top-level folder that is a 64-character hex string within the .dig directory.
- *
- * @param {string} dirPath - The .dig directory path.
- * @returns {string | null} The name of the folder if found, otherwise null.
- */
-export const findStoreId = (): Buffer | null => {
-  if (!fs.existsSync(DIG_FOLDER_PATH)) {
-    throw new Error(`Directory does not exist: ${DIG_FOLDER_PATH}`);
-  }
-
-  const folders = fs.readdirSync(DIG_FOLDER_PATH);
-
-  for (const folder of folders) {
-    const folderPath = path.join(DIG_FOLDER_PATH, folder);
-    if (
-      fs.lstatSync(folderPath).isDirectory() &&
-      /^[a-f0-9]{64}$/.test(folder)
-    ) {
-      return Buffer.from(folder, "hex");
-    }
-  }
-
-  return null;
-};
-
 export const hasMetadataWritePermissions = async (
   storeId: Buffer
 ): Promise<boolean> => {
@@ -315,7 +290,7 @@ export const updateDataStoreMetadata = async ({
   description,
   bytes,
 }: DataStoreMetadata) => {
-  const storeId = findStoreId();
+  const storeId = await getActiveStoreId();
   if (!storeId) {
     throw new Error("No data store found in the current directory");
   }
@@ -371,7 +346,7 @@ export const updateDataStoreMetadata = async ({
 export const getLocalRootHistory = async (): Promise<
   RootHistoryItem[] | undefined
 > => {
-  const storeId = findStoreId();
+  const storeId = await getActiveStoreId();
 
   if (!storeId) {
     throw new Error("No launcher ID found in the current directory");
@@ -397,7 +372,7 @@ export const getLocalRootHistory = async (): Promise<
 };
 
 export const validateStore = async (): Promise<boolean> => {
-  const storeId = findStoreId();
+  const storeId = await getActiveStoreId();
 
   if (!storeId) {
     console.error("No launcher ID found in the current directory");
@@ -436,6 +411,9 @@ export const validateStore = async (): Promise<boolean> => {
 
   // Check if the root history has more hashes than the manifest file
   if (rootHistory.length > manifestHashes.length) {
+    console.error(rootHistory.length, manifestHashes.length);
+    console.error(rootHistory);
+    console.error(manifestHashes);
     console.error(
       "The store is not synced: Root history has more hashes than the manifest file."
     );
@@ -484,13 +462,13 @@ export const validateStore = async (): Promise<boolean> => {
         path.join(DIG_FOLDER_PATH, storeId.toString("hex"), "data")
       );
 
-      if (process.env.DIG_DEBUG == "1") {
+      //if (process.env.DIG_DEBUG == "1") {
         console.log(
           `Key ${fileKey}: SHA256 = ${fileData.sha256}, integrity: ${
             integrityCheck ? "OK" : "FAILED"
           }`
         );
-      }
+     // }
 
       if (!integrityCheck) {
         filesIntegrityIntact = false;

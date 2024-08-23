@@ -6,7 +6,8 @@ export interface FileDetails {
 
 export interface Config {
   deploy_dir: string;
-  origin?: string;
+  remote?: string;
+  active_store?: string;
 }
 
 export interface CreateStoreUserInputs {

@@ -1,13 +1,14 @@
 import * as fs from "fs";
 import superagent from "superagent";
 import { promptCredentials, logApiRequest, waitForPromise } from "../utils";
-import { DIG_FOLDER_PATH, CONFIG_FILE_PATH } from "../utils/config";
+import { DIG_FOLDER_PATH, CONFIG_FILE_PATH, getActiveStoreId, setRemote } from "../utils/config";
 import {
   doesHostExistInMirrors,
   createServerCoin,
 } from "../blockchain/server_coin";
-import { findStoreId, getLocalRootHistory } from "../blockchain/datastore";
+import { getLocalRootHistory } from "../blockchain/datastore";
 import { uploadDirectory } from "../utils/upload";
+import { promptForRemote } from '../prompts';
 
 // Helper function to check if necessary files exist
 const checkRequiredFiles = (): void => {
@@ -20,24 +21,21 @@ const checkRequiredFiles = (): void => {
 };
 
 // Helper function to read and parse the config file
-const getConfig = (): { origin: string } => {
-  const config = JSON.parse(fs.readFileSync(CONFIG_FILE_PATH, "utf-8"));
-  if (!config.origin) {
-    throw new Error('The "origin" field is not set in the config file.');
-  }
-  return config;
+const getConfig = (): { remote: string } => {
+  return JSON.parse(fs.readFileSync(CONFIG_FILE_PATH, "utf-8"));
 };
 
 // Helper function to get upload details
 const getUploadDetails = async (
-  origin: string,
+  remote: string,
   username: string,
   password: string
 ) => {
   return waitForPromise(
     async () => {
       try {
-        const request = superagent.head(origin).auth(username, password);
+        console.log(username, password);
+        const request = superagent.head(remote).auth(username, password);
         const response = await logApiRequest(request);
 
         return {
@@ -47,6 +45,7 @@ const getUploadDetails = async (
           generationIndex: Number(response.headers["x-generation-index"]),
         };
       } catch (error: any) {
+        console.error(error.message);
         return false;
       }
     },
@@ -62,19 +61,20 @@ export const push = async (): Promise<void> => {
     checkRequiredFiles();
 
     const config = getConfig();
-    const origin = new URL(config.origin);
 
-    const { username, password } = await promptCredentials(origin.hostname);
-    const storeId = await findStoreId();
+    if (!config?.remote) {
+      const remote = await promptForRemote();
+      setRemote(remote);
+      config.remote = remote;
+    }
+
+    const { username, password } = await promptCredentials(config.remote);
+    const storeId = await getActiveStoreId();
 
     if (!storeId) {
       throw new Error(
         "Could not find the store ID. Make sure you have committed your changes."
       );
-    }
-
-    if (!origin.pathname.includes(storeId.toString("hex"))) {
-      throw new Error("The origin URL is pointing to the wrong store id.");
     }
 
     const rootHistory = await getLocalRootHistory();
@@ -88,7 +88,15 @@ export const push = async (): Promise<void> => {
     const lastLocalRootHash = rootHistory[rootHistory.length - 1].root_hash;
     const localGenerationIndex = rootHistory.length - 1;
 
-    const preflight = await getUploadDetails(config.origin, username, password);
+    const standardOriginEndpoint = `https://${config.remote}/stores/${storeId.toString(
+      "hex"
+    )}`;
+
+    const preflight = await getUploadDetails(
+      standardOriginEndpoint,
+      username,
+      password
+    );
 
     if (!preflight) {
       throw new Error("Failed to perform preflight check.");
@@ -129,7 +137,7 @@ export const push = async (): Promise<void> => {
     }
 
     await uploadDirectory(
-      config.origin,
+      standardOriginEndpoint,
       username,
       password,
       nonce,
@@ -141,13 +149,10 @@ export const push = async (): Promise<void> => {
     // Ensure server coin exists for the origin
     const serverCoinExists = await doesHostExistInMirrors(
       storeId.toString("hex"),
-      `${origin.protocol}//${origin.hostname}`
+      config.remote
     );
     if (!serverCoinExists) {
-      console.log(`Creating server coin for ${origin.hostname}`);
-      await createServerCoin(storeId.toString("hex"), [
-        `${origin.protocol}//${origin.hostname}`,
-      ]);
+      await createServerCoin(storeId.toString("hex"), [config.remote]);
     }
   } catch (error: any) {
     console.error(`Push failed: ${error.message}`);

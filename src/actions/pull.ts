@@ -1,8 +1,7 @@
 
 import fs from "fs";
-import { pullFilesFromOrigin } from "../utils/download";
-import { DIG_FOLDER_PATH, CONFIG_FILE_PATH} from "../utils/config";
-import { findStoreId } from "../blockchain/datastore";
+import { pullFilesFromNetwork } from "../utils/download";
+import { DIG_FOLDER_PATH, CONFIG_FILE_PATH, getActiveStoreId} from "../utils/config";
 
 const getConfig = (): { origin: string } => {
     const config = JSON.parse(fs.readFileSync(CONFIG_FILE_PATH, "utf-8"));
@@ -14,10 +13,10 @@ const getConfig = (): { origin: string } => {
 
 export const pull = async (): Promise<void> => {
     const config = getConfig();
-    const storeId = await findStoreId();
+    const storeId = await getActiveStoreId();
     if (!storeId) {
         throw new Error("Store not found.");
     }
     
-    await pullFilesFromOrigin(config.origin, storeId.toString('hex'), DIG_FOLDER_PATH);
+    await pullFilesFromNetwork(storeId.toString('hex'), DIG_FOLDER_PATH);
 };

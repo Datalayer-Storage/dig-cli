@@ -4,8 +4,7 @@ import {
   DataIntegrityTree,
   DataIntegrityTreeOptions,
 } from "./DataIntegrityTree";
-import { DIG_FOLDER_PATH } from "./utils/config";
-import { findStoreId } from "./blockchain/datastore"; // Import findStoreId
+import { DIG_FOLDER_PATH, getActiveStoreId } from "./utils/config";
 
 const mimeTypes: { [key: string]: string } = {
   ".html": "text/html",
@@ -60,26 +59,41 @@ const hexToUtf8 = (hex: string): string => {
   return Buffer.from(hex, "hex").toString("utf-8");
 };
 
-const verifyStoreId = (req: Request, res: Response, next: NextFunction) => {
-  const { storeId } = req.params;
-  const expectedStoreId = findStoreId();
+const verifyStoreId = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { storeId } = req.params;
+    const expectedStoreId = await getActiveStoreId();
 
-  if (storeId !== expectedStoreId?.toString("hex")) {
-    res.status(302).send(`
-      <html>
-        <body>
-          <h1>Incorrect Store ID</h1>
-          <p>The store ID you provided does not match the expected store ID.</p>
-          <p>Click <a href="/${expectedStoreId?.toString(
-            "hex"
-          )}">here</a> to go to the correct store.</p>
-        </body>
-      </html>
-    `);
-    return;
+    if (storeId.length !== 64) {
+      if (expectedStoreId) {
+        return res.redirect(
+          302,
+          `/${expectedStoreId.toString("hex")}/${encodeURIComponent(req.originalUrl)}`
+        );
+      } else {
+        return res.status(400).send("Invalid store ID format.");
+      }
+    }
+
+    if (storeId !== expectedStoreId?.toString("hex")) {
+      return res.status(302).send(`
+        <html>
+          <body>
+            <h1>Incorrect Store ID</h1>
+            <p>The store ID you provided does not match the expected store ID.</p>
+            <p>Click <a href="/${expectedStoreId?.toString(
+              "hex"
+            )}">here</a> to go to the correct store.</p>
+          </body>
+        </html>
+      `);
+    }
+
+    next();
+  } catch (error) {
+    console.error("Error in verifyStoreId middleware:", error);
+    res.status(500).send("An error occurred while verifying the store ID.");
   }
-
-  next();
 };
 
 const startPreviewServer = (): Promise<void> => {
@@ -91,72 +105,82 @@ const startPreviewServer = (): Promise<void> => {
       app.use("/:storeId", verifyStoreId);
 
       app.get("/:storeId", (req: Request, res: Response) => {
-        const { storeId } = req.params;
-        const showKeys = req.query.showKeys === "true";
+        try {
+          const { storeId } = req.params;
+          const showKeys = req.query.showKeys === "true";
 
-        const options: DataIntegrityTreeOptions = {
-          storageMode: "local",
-          storeDir: DIG_FOLDER_PATH,
-        };
+          const options: DataIntegrityTreeOptions = {
+            storageMode: "local",
+            storeDir: DIG_FOLDER_PATH,
+          };
 
-        const datalayer = new DataIntegrityTree(storeId, options);
+          const datalayer = new DataIntegrityTree(storeId, options);
 
-        if (!showKeys) {
-          const indexKey = Buffer.from("index.html").toString("hex");
-          const hasIndex = datalayer.hasKey(indexKey);
+          if (!showKeys) {
+            const indexKey = Buffer.from("index.html").toString("hex");
+            const hasIndex = datalayer.hasKey(indexKey);
 
-          if (hasIndex) {
-            const stream = datalayer.getValueStream(indexKey);
-            const fileExtension = extname("index.html").toLowerCase();
+            if (hasIndex) {
+              const stream = datalayer.getValueStream(indexKey);
+              const fileExtension = extname("index.html").toLowerCase();
 
-            const mimeType =
-              mimeTypes[fileExtension] || "application/octet-stream";
-            res.setHeader("Content-Type", mimeType);
+              const mimeType =
+                mimeTypes[fileExtension] || "application/octet-stream";
+              res.setHeader("Content-Type", mimeType);
 
-            stream.pipe(res);
+              stream.pipe(res);
 
-            stream.on("error", (err) => {
-              console.error("Stream error:", err);
-              res.status(500).send("Error streaming file.");
-            });
+              stream.on("error", (err) => {
+                console.error("Stream error:", err);
+                res.status(500).send("Error streaming file.");
+              });
 
-            return;
+              return;
+            }
           }
+
+          const keys = datalayer.listKeys();
+          const links = keys.map((key) => {
+            const utf8Key = hexToUtf8(key);
+            const link = `/${storeId}/${encodeURIComponent(utf8Key)}`;
+            return `<a href="${link}">${utf8Key}</a>`;
+          });
+
+          res.send(`
+            <html>
+              <body>
+                <h1>Index Of ${storeId}</h1>
+                <ul>
+                  ${links.map((link) => `<li>${link}</li>`).join("")}
+                </ul>
+              </body>
+            </html>
+          `);
+        } catch (error) {
+          console.error("Error in /:storeId route:", error);
+          res.status(500).send("An error occurred while processing your request.");
         }
-
-        const keys = datalayer.listKeys();
-        const links = keys.map((key) => {
-          const utf8Key = hexToUtf8(key);
-          const link = `/${storeId}/${encodeURIComponent(utf8Key)}`;
-          return `<a href="${link}">${utf8Key}</a>`;
-        });
-
-        res.send(`
-          <html>
-            <body>
-              <h1>Index Of</h1>
-              <ul>
-                ${links.map((link) => `<li>${link}</li>`).join("")}
-              </ul>
-            </body>
-          </html>
-        `);
       });
 
       app.get("/:storeId/*", (req: Request, res: Response) => {
-        const { storeId } = req.params;
-        const catchall = req.params[0];
-
-        const key = Buffer.from(catchall, "utf-8").toString("hex");
-
-        const options: DataIntegrityTreeOptions = {
-          storageMode: "local",
-          storeDir: DIG_FOLDER_PATH,
-        };
-
-        const datalayer = new DataIntegrityTree(storeId, options);
-
         try {
+          const { storeId } = req.params;
+          const catchall = req.params[0];
+
+          const key = Buffer.from(catchall, "utf-8").toString("hex");
+
+          const options: DataIntegrityTreeOptions = {
+            storageMode: "local",
+            storeDir: DIG_FOLDER_PATH,
+          };
+
+          const datalayer = new DataIntegrityTree(storeId, options);
+
+          if (!datalayer.hasKey(key)) {
+            res.status(404).send("File not found.");
+            return;
+          }
+
           const stream = datalayer.getValueStream(key);
           const fileExtension = extname(catchall).toLowerCase();
 
@@ -170,24 +194,27 @@ const startPreviewServer = (): Promise<void> => {
             console.error("Stream error:", err);
             res.status(500).send("Error streaming file.");
           });
-        } catch (err) {
-          console.error("Error retrieving stream:", err);
+        } catch (error) {
+          console.error("Error retrieving stream:", error);
           res.status(500).send("Error retrieving the requested file.");
         }
       });
 
-      const server = app.listen(PORT, () => {
+      const server = app.listen(PORT, async () => {
         console.log(`Server is running on port ${PORT}`);
 
-        const storeId = findStoreId(); // Get the correct store ID
-        console.log(
-          `Preview your store at: http://localhost:${PORT}/${storeId?.toString(
-            "hex"
-          )}`
-        );
+        const storeId = await getActiveStoreId(); // Get the correct store ID
+        if (storeId) {
+          console.log(
+            `Preview your store at: http://localhost:${PORT}/${storeId.toString(
+              "hex"
+            )}`
+          );
+        } else {
+          console.error("Store ID not found. Please ensure it is correctly set up.");
+        }
       });
 
-      // Resolve when the server is closed
       server.on("close", resolve);
     } catch (error) {
       reject(error);

@@ -1,23 +1,12 @@
 import * as fs from "fs";
 import { verifyConnectionString } from "../utils";
-import { CONFIG_FILE_PATH } from "../utils/config";
+import { setRemote as _setRemote, setActiveStore as _setActiveStore } from "../utils/config";
 import { Config } from "../types";
 
-export const setRemote = ({ origin }: { origin: string }): void => {
-  if (!fs.existsSync(CONFIG_FILE_PATH)) {
-    throw new Error("Config file not found.");
-  }
+export const setRemote = (remote: string): void => {
+  _setRemote(remote);
+};
 
-  const config: Config = JSON.parse(fs.readFileSync(CONFIG_FILE_PATH, "utf-8"));
-
-  if (!verifyConnectionString(origin)) {
-    throw new Error(
-      "Invalid origin format. The format should be dig://hostname:username/distributionname.dig"
-    );
-  }
-
-  config.origin = origin;
-
-  fs.writeFileSync(CONFIG_FILE_PATH, JSON.stringify(config, null, 4));
-  console.log(`Origin set to ${origin}`);
+export const setActiveStore = (storeId: string): void => {
+  _setActiveStore(storeId);
 };

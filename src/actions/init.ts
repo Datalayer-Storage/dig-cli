@@ -2,31 +2,18 @@ import * as fs from "fs";
 import * as path from "path";
 import { createDataLayerStore } from "../blockchain/datalayer";
 import { DataIntegrityTree, DataIntegrityTreeOptions } from "../DataIntegrityTree";
-import { DIG_FOLDER_PATH, MIN_HEIGHT, getHeightFilePath } from "../utils/config";
-import { askToDeleteAndReinit } from "../prompts";
+import { DIG_FOLDER_PATH, MIN_HEIGHT, getHeightFilePath, setActiveStore, CONFIG_FILE_PATH } from "../utils/config";
 import { CreateStoreUserInputs } from "../types";
 import { getPeer } from "../blockchain/peer";
 
 export const init = async (inputs: CreateStoreUserInputs = {}): Promise<void> => {
-  if (fs.existsSync(DIG_FOLDER_PATH)) {
-    const shouldDelete = await askToDeleteAndReinit();
-
-    if (!shouldDelete) {
-      console.log("Initialization aborted.");
-      return;
-    }
-
-    // Delete the .dig directory
-    fs.rmSync(DIG_FOLDER_PATH, { recursive: true, force: true });
-    console.log(".dig folder deleted.");
+  if (!fs.existsSync(DIG_FOLDER_PATH)) {
+    fs.mkdirSync(DIG_FOLDER_PATH);
   }
 
-  // Re-create the .dig directory
-  fs.mkdirSync(DIG_FOLDER_PATH);
-
-  if (!fs.existsSync(path.join(process.cwd(), 'dig.config.json'))) {
+  if (!fs.existsSync(CONFIG_FILE_PATH)) {
     const initialConfig = { deploy_dir: "./dist", origin: "" };
-    fs.writeFileSync(path.join(process.cwd(), 'dig.config.json'), JSON.stringify(initialConfig, null, 4));
+    fs.writeFileSync(CONFIG_FILE_PATH, JSON.stringify(initialConfig, null, 4));
     console.log("Created dig.config.json file.");
   }
 
@@ -34,16 +21,13 @@ export const init = async (inputs: CreateStoreUserInputs = {}): Promise<void> =>
   const currentHeight = (await peer.getPeak()) || MIN_HEIGHT;
   const currentHeaderHash = await peer.getHeaderHash(currentHeight);
 
-  
-
   const storeInfo = await createDataLayerStore(inputs);
   if (storeInfo) {
     const storeId = storeInfo.launcherId.toString("hex");
 
     const options: DataIntegrityTreeOptions = {
       storageMode: "local",
-      storeDir: DIG_FOLDER_PATH,
-      disableInitialize: true
+      storeDir: DIG_FOLDER_PATH
     };
 
     new DataIntegrityTree(storeId, options);
@@ -55,6 +39,8 @@ export const init = async (inputs: CreateStoreUserInputs = {}): Promise<void> =>
         createdAtHash: currentHeaderHash.toString("hex"),
       })
     );
+
+    setActiveStore(storeId);
 
     console.log(`Store initialized at Block Height: ${currentHeight} | ${currentHeaderHash.toString('hex')}`);
   } else {

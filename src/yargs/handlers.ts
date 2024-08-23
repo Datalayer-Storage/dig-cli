@@ -4,6 +4,7 @@ import { CreateStoreUserInputs } from '../types';
 import {logout} from "../actions/logout";
 import { startPreviewServer } from '../server';
 import { checkStoreWritePermissions } from "../actions";
+import { getActiveStoreId } from "../utils/config";
 
 // Command handlers
 export const handlers = {
@@ -11,10 +12,12 @@ export const handlers = {
     await init(inputs);
   },
   commit: async () => {
+    await getActiveStoreId();
     await checkStoreWritePermissions();
     await commit();
   },
   push: async () => {
+    await getActiveStoreId();
     await checkStoreWritePermissions();
     await push();
   },
@@ -23,11 +26,11 @@ export const handlers = {
     console.log("Pull command executed");
   },
   server: async () => {
+    await getActiveStoreId();
     await startPreviewServer();
   },
-  clone: async () => {
-    //await clone();
-    console.log("Clone command executed");
+  clone: async (storeId: string) => {
+    await clone(storeId);
   },
   upsertStore: async (writer?: string, oracle_fee?: number, admin?: string) => {
     //await upsertStore(writer, oracle_fee, admin);
@@ -37,8 +40,8 @@ export const handlers = {
    // await removeStore(writer, oracle_fee, admin);
     console.log("Store remove executed");
   },
-  setRemote: async (connectionString: string) => {
-    await setRemote({origin: connectionString});
+  setRemote: async (peer: string) => {
+    await setRemote(peer);
   },
   validateStore: async () => {
     await validate();
@@ -76,7 +79,7 @@ export const handlers = {
         console.error("Unknown keys action");
     }
   },
-  login: async (username, password) => {
+  login: async (username: string, password: string) => {
     await login(username, password);
   },
   logout: async () => {

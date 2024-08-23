@@ -178,9 +178,17 @@ describe("MerkleManager", () => {
     await merkleManager.upsertKey(readStream1, TEST_KEY);
     const root1 = merkleManager.commit();
 
+    if (!root1) {
+      throw new Error("Root hash is empty");
+    }
+
     const readStream2 = Readable.from(["New Data"]);
     await merkleManager.upsertKey(readStream2, "new_key");
     const root2 = merkleManager.commit();
+
+    if (!root2) {
+      throw new Error("Root hash is empty");
+    }
 
     const { added, deleted } = merkleManager.getRootDiff(root1, root2);
 

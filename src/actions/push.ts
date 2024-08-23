@@ -41,7 +41,7 @@ const getUploadDetails = async (
         const response = await logApiRequest(request);
 
         return {
-          lastUploadedHash: response.headers["x-last-uploaded-hash"],
+          lastUploadedHash: response.headers["x-generation-hash"],
           uploadType: response.headers["x-upload-type"],
           nonce: response.headers["x-nonce"],
           generationIndex: Number(response.headers["x-generation-index"]),

@@ -2,6 +2,8 @@ import { getOrCreateMnemonic, deleteMnemonic, getMnemonic, importMnemonic } from
 import {commit, push, pull, clone, setRemote, init, validate, login} from "../actions";
 import { CreateStoreUserInputs } from '../types';
 import {logout} from "../actions/logout";
+import { startPreviewServer } from '../server';
+import { checkStoreWritePermissions } from "../actions";
 
 // Command handlers
 export const handlers = {
@@ -9,17 +11,19 @@ export const handlers = {
     await init(inputs);
   },
   commit: async () => {
-   // await checkStorePermissions();
-   // await ensureStoreIsSpendable();
+    await checkStoreWritePermissions();
     await commit();
   },
   push: async () => {
+    await checkStoreWritePermissions();
     await push();
-    console.log("Success!");
   },
   pull: async () => {
     await pull();
     console.log("Pull command executed");
+  },
+  server: async () => {
+    await startPreviewServer();
   },
   clone: async () => {
     //await clone();
@@ -34,12 +38,10 @@ export const handlers = {
     console.log("Store remove executed");
   },
   setRemote: async (connectionString: string) => {
-   // await setRemote(connectionString);
-    console.log(`Remote set executed with connectionString: ${connectionString}`);
+    await setRemote({origin: connectionString});
   },
   validateStore: async () => {
     await validate();
-    console.log("Store validated");
   },
   manageStore: async (action: string) => {
     switch (action) {

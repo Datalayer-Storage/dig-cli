@@ -20,16 +20,3 @@ export const getFilePathFromSha256 = (
   return path.join(dataDir, sha256.match(/.{1,2}/g)!.join("/"));
 };
 
-// Function to generate file paths based on SHA-256 hashes
-export const getFilePathFromSHA256 = (sha256: string): string => {
-  const parts = sha256.match(/.{1,2}/g); // Split into chunks of 2 characters
-  if (!parts) {
-    throw new Error(`Invalid sha256 hash: ${sha256}`);
-  }
-  return path.join(
-    ".dig",
-    "data",
-    ...parts.slice(0, -1),
-    parts[parts.length - 1]
-  );
-};

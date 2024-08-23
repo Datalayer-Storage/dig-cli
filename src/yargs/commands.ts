@@ -31,6 +31,15 @@ export function initCommand(yargs: Argv<{}>) {
   );
 }
 
+export function serverCommand(yargs: Argv<{}>) {
+  return yargs.command(
+    "server",
+    "Preview your store in the browser",
+    {},
+    handlers.server
+  );
+}
+
 export function commitCommand(yargs: Argv<{}>) {
   return yargs.command(
     "commit",

@@ -1,6 +1,8 @@
 import { getOrCreateMnemonic, deleteMnemonic, getMnemonic, importMnemonic } from "../blockchain/mnemonic";
 import { commit, push, pull, clone, setRemote, init, validate } from "../actions";
 import { CreateStoreUserInputs } from '../types';
+import { startPreviewServer } from '../server';
+import { checkStoreWritePermissions } from "../actions";
 
 // Command handlers
 export const handlers = {
@@ -8,17 +10,19 @@ export const handlers = {
     await init(inputs);
   },
   commit: async () => {
-   // await checkStorePermissions();
-   // await ensureStoreIsSpendable();
+    await checkStoreWritePermissions();
     await commit();
   },
   push: async () => {
+    await checkStoreWritePermissions();
     await push();
-    console.log("Success!");
   },
   pull: async () => {
     await pull();
     console.log("Pull command executed");
+  },
+  server: async () => {
+    await startPreviewServer();
   },
   clone: async () => {
     //await clone();

@@ -8,8 +8,9 @@ import {
   pullCommand,
   cloneCommand,
   storeCommand,
+  remoteSetCommand,
   keysCommand,
-  remoteCommand
+  serverCommand,
 } from "./commands";
 import {set} from "lodash";
 import {setRemote} from "../actions";
@@ -30,6 +31,7 @@ export async function setupCommands() {
   storeCommand(parser);
   remoteCommand(parser);
   keysCommand(parser);
+  serverCommand(parser);
 
   // Set default command and help
   parser

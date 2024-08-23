@@ -47,7 +47,7 @@ export interface DataIntegrityTreeOptions {
   storageMode?: "local" | "unified";
   // This is a hack to prevent an empty root hash from
   // being commited in the constructor when the tree is empty
-  disableInitialize?: boolean
+  disableInitialize?: boolean;
 }
 
 /**
@@ -67,17 +67,17 @@ class DataIntegrityTree {
     }
     this.storeId = storeId;
     this.storeBaseDir = options.storeDir || "./";
-    
+
     if (!fs.existsSync(this.storeBaseDir)) {
       fs.mkdirSync(this.storeBaseDir, { recursive: true });
     }
-    
+
     if (options.storageMode === "unified") {
       this.dataDir = path.join(this.storeBaseDir, "data");
     } else {
       this.dataDir = path.join(this.storeBaseDir, this.storeId, "data");
     }
-    
+
     this.storeDir = path.join(this.storeBaseDir, this.storeId);
 
     if (!fs.existsSync(this.storeDir)) {
@@ -356,11 +356,10 @@ class DataIntegrityTree {
    * Commit the current state of the Merkle tree.
    */
   commit(): string {
-    const emptyRootHash = "0000000000000000000000000000000000000000000000000000000000000000";
+    const emptyRootHash =
+      "0000000000000000000000000000000000000000000000000000000000000000";
     const rootHash =
-      this.tree.getLeafCount() === 0
-        ? emptyRootHash
-        : this.getRoot();
+      this.tree.getLeafCount() === 0 ? emptyRootHash : this.getRoot();
 
     const manifest = this._loadManifest();
     const latestRootHash =
@@ -378,7 +377,11 @@ class DataIntegrityTree {
     if (!fs.existsSync(path.dirname(treeFilePath))) {
       fs.mkdirSync(path.dirname(treeFilePath), { recursive: true });
     }
-    const serializedTree = this.serialize() as { root: string; leaves: string[]; files: object };
+    const serializedTree = this.serialize() as {
+      root: string;
+      leaves: string[];
+      files: object;
+    };
     if (rootHash === emptyRootHash) {
       serializedTree.root = emptyRootHash;
     }
@@ -394,6 +397,43 @@ class DataIntegrityTree {
    */
   clearPendingRoot(): void {
     this.tree = this._loadLatestTree();
+  }
+
+  /**
+   * Check if a file exists for a given key.
+   * @param hexKey - The hexadecimal key of the file.
+   * @param rootHash - The root hash of the tree. Defaults to the latest root hash.
+   * @returns A boolean indicating if the file exists.
+   */
+  hasKey(hexKey: string, rootHash: string | null = null): boolean {
+    if (!isHexString(hexKey)) {
+      throw new Error("key must be a valid hex string");
+    }
+    if (rootHash && !isHexString(rootHash)) {
+      throw new Error("rootHash must be a valid hex string");
+    }
+
+    let sha256: string | undefined;
+
+    if (rootHash) {
+      const tree = this.deserializeTree(rootHash);
+      // @ts-ignore
+      sha256 = tree.files.get(hexKey)?.sha256;
+    } else {
+      sha256 = this.files.get(hexKey)?.sha256;
+    }
+
+    if (!sha256) {
+      return false;
+    }
+
+    const filePath = path.join(
+      this.dataDir,
+      sha256.match(/.{1,2}/g)!.join("/")
+    );
+
+    // Check if the file exists at the calculated path
+    return fs.existsSync(filePath);
   }
 
   /**
@@ -424,7 +464,10 @@ class DataIntegrityTree {
       throw new Error(`File with key ${hexKey} not found.`);
     }
 
-    const filePath = path.join(this.dataDir, sha256.match(/.{1,2}/g)!.join("/"));
+    const filePath = path.join(
+      this.dataDir,
+      sha256.match(/.{1,2}/g)!.join("/")
+    );
 
     if (!fs.existsSync(filePath)) {
       throw new Error(`File at path ${filePath} does not exist`);

@@ -131,7 +131,7 @@ export function remoteCommand(yargs: Argv<{}>) {
         describe: "The connection string for the datastore remote origin",
       });
     },
-    handlers.setRemote(connectionString)
+    async (argv: {connectionString: string}) => await handlers.setRemote(argv.connectionString)
   );
 }
 
@@ -160,6 +160,7 @@ export function keysCommand(yargs: Argv<{}>) {
 }
 
 export function loginCommand(yargs: Argv<{}>) {
+  // @ts-ignore
   return yargs.command<{ user: string; pass: string }>(
     "login",
     "Set datastore login credentials",
@@ -191,6 +192,6 @@ export function logoutCommand(yargs: Argv<{}>) {
     "logout",
     "Remove datastore login credentials",
     {},
-    await handlers.logout
+    async () => await handlers.logout()
   );
 }

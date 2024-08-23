@@ -8,10 +8,10 @@ import {
   pullCommand,
   cloneCommand,
   storeCommand,
-  remoteSetCommand,
+  remoteCommand,
   keysCommand,
   loginCommand, 
-  logoutCommand
+  logoutCommand,
   serverCommand,
 } from "./commands";
 import {set} from "lodash";

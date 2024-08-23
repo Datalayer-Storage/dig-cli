@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.5](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.4...v0.0.5) (2024-08-23)
+
+
+### Features
+
+* multi store support ([edd7fab](https://github.com/Datalayer-Storage/dig-cli/commit/edd7fabc092cdb89cb24625b2a2678fb24ff2f98))
+
+
+### Bug Fixes
+
+* merge conflicts ([e7300c3](https://github.com/Datalayer-Storage/dig-cli/commit/e7300c38f372aad74a076776cec69e549b1e10e2))
+* ts errors ([a982a68](https://github.com/Datalayer-Storage/dig-cli/commit/a982a687bba531258cbfcf10f788ff2f242d15b6))
+
 ### [0.0.4](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.3...v0.0.4) (2024-08-23)
 
 ### [0.0.3](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.2...v0.0.3) (2024-08-23)

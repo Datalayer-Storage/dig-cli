@@ -43,6 +43,7 @@ export const init = async (inputs: CreateStoreUserInputs = {}): Promise<void> =>
     const options: DataIntegrityTreeOptions = {
       storageMode: "local",
       storeDir: DIG_FOLDER_PATH,
+      disableInitialize: true
     };
 
     new DataIntegrityTree(storeId, options);
@@ -55,7 +56,7 @@ export const init = async (inputs: CreateStoreUserInputs = {}): Promise<void> =>
       })
     );
 
-    console.log(`Store initialized at Height: ${currentHeight} | ${currentHeaderHash.toString('hex')}`);
+    console.log(`Store initialized at Block Height: ${currentHeight} | ${currentHeaderHash.toString('hex')}`);
   } else {
     console.log("Failed to initialize the data layer store.");
     fs.rmSync(DIG_FOLDER_PATH, { recursive: true, force: true });

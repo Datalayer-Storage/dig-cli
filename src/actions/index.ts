@@ -7,3 +7,5 @@ export * from './pull';
 export * from './commit';
 export * from './validate';
 export * from './getProof';
+export * from './login';
+export * from './logout';

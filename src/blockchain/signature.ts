@@ -6,8 +6,6 @@ export const createKeyOwnershipSignature = async (nonce: string): Promise<string
     const message = `Signing this message to prove ownership of key.\n\nNonce: ${nonce}`;
     const privateSyntheticKey = await getPrivateSyntheticKey();
     const signature = signMessage(Buffer.from(message, "utf-8"), privateSyntheticKey);
-    console.log(signature.toString("hex"));
-    console.log(signature.length)
     return signature.toString("hex");
 }
 

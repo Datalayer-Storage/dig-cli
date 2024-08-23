@@ -299,8 +299,8 @@ export const hasMetadataWritePermissions = async (
 
     const hasWriteAccess = latestInfo.delegatedPuzzles.some(
       ({ puzzleInfo }) =>
-        puzzleInfo.adminInnerPuzzleHash === ownerPuzzleHash ||
-        puzzleInfo.writerInnerPuzzleHash === ownerPuzzleHash
+        puzzleInfo.adminInnerPuzzleHash?.equals(ownerPuzzleHash) ||
+        puzzleInfo.writerInnerPuzzleHash?.equals(ownerPuzzleHash)
     );
 
     return isStoreOwner || hasWriteAccess;

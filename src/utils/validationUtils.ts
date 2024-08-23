@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import * as zlib from "zlib";
 import * as crypto from "crypto";
-import path from "path";
+import {getFilePathFromSha256} from "./hashUtils";
 
 /**
  * Validates if the SHA256 hash of the decompressed file matches the provided hash.
@@ -15,7 +15,7 @@ export const validateFileSha256 = (
   dataDir: string
 ): boolean => {
   // Derive the file path from the SHA256 hash
-  const filePath = path.join(dataDir, sha256.match(/.{1,2}/g)!.join("/"));
+  const filePath = getFilePathFromSha256(sha256, dataDir);
 
   if (!fs.existsSync(filePath)) {
     return false;

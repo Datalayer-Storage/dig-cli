@@ -1,6 +1,8 @@
 import { getOrCreateMnemonic, deleteMnemonic, getMnemonic, importMnemonic } from "../blockchain/mnemonic";
-import {commit, push, pull, clone, setRemote, init, validate, getProof} from "../actions";
-import {CreateStoreUserInputs, ManageStoreArgs} from '../types';
+import {commit, push, pull, clone, setRemote, init, validate, login, logout, getProof} from "../actions";
+import { CreateStoreUserInputs } from '../types';
+import { startPreviewServer } from '../server';
+import { checkStoreWritePermissions } from "../actions";
 
 // Command handlers
 export const handlers = {
@@ -8,17 +10,19 @@ export const handlers = {
     await init(inputs);
   },
   commit: async () => {
-   // await checkStorePermissions();
-   // await ensureStoreIsSpendable();
+    await checkStoreWritePermissions();
     await commit();
   },
   push: async () => {
+    await checkStoreWritePermissions();
     await push();
-    console.log("Success!");
   },
   pull: async () => {
     await pull();
     console.log("Pull command executed");
+  },
+  server: async () => {
+    await startPreviewServer();
   },
   clone: async () => {
     //await clone();
@@ -33,12 +37,10 @@ export const handlers = {
     console.log("Store remove executed");
   },
   setRemote: async (connectionString: string) => {
-   // await setRemote(connectionString);
-    console.log(`Remote set executed with connectionString: ${connectionString}`);
+    await setRemote({origin: connectionString});
   },
   validateStore: async () => {
     await validate();
-    console.log("Store validated");
   },
   manageStore: async (argv) => {
     try {
@@ -62,7 +64,6 @@ export const handlers = {
     } catch {
       console.error('Invalid command structure')
     }
-
   },
   manageKeys: async (action: string, providedMnemonic?: string) => {
     switch (action) {
@@ -82,4 +83,10 @@ export const handlers = {
         console.error("Unknown keys action");
     }
   },
+  login: async (username, password) => {
+    await login(username, password);
+  },
+  logout: async () => {
+    await logout();
+  }
 };

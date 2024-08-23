@@ -20,50 +20,84 @@ const getUploadUrl = async (
     const publicSyntheticKey = await getPublicSyntheticKey();
     const { createdAtHeight, createdAtHash } = await getStoreCreatedAtHeight();
 
-    console.log('!', publicSyntheticKey.toString("hex"))
-
     const response = await superagent
       .post(origin)
       .auth(username, password)
       .send({
         key_ownership_sig: keyOwnershipSig,
         public_key: publicSyntheticKey.toString("hex"),
-        filename: filename.replace(/\\/g, "/")
+        filename: filename.replace(/\\/g, "/"),
+        nonce
       })
       .set("x-created-at-height", String(createdAtHeight))
       .set("x-created-at-hash", createdAtHash.toString("hex"));
 
-    console.log(response.body);
-
     return response.body.uploadUrl;
   } catch (error: any) {
-    console.error("Failed to get signed upload URL:", error.message || error);
-    return undefined;
+    if (error.status === 409) {
+      return undefined; // Skip this file by returning undefined
+    } else {
+      throw error; // Abort the process on any other error
+    }
   }
 };
 
 // Function to upload a single file using the signed URL
 const uploadFile = async (
   filePath: string,
-  uploadUrl: string
+  uploadUrl: string,
 ): Promise<void> => {
-  try {
-    const fileBuffer = fs.readFileSync(filePath);
-    const fileSize = fileBuffer.length;
+  const fileBuffer = fs.readFileSync(filePath);
+  const fileSize = fileBuffer.length;
 
-    const response = await superagent
-      .put(uploadUrl)
-      .set("Content-Type", "application/octet-stream")
-      .set("Content-Length", String(fileSize))
-      .send(fileBuffer);
+  const response = await superagent
+    .put(uploadUrl)
+    .set("Content-Type", "application/octet-stream")
+    .set("Content-Length", String(fileSize))
+    .send(fileBuffer);
 
-    if (response.status !== 200) {
-      throw new Error(`Upload failed with status ${response.status}: ${response.text}`);
+  if (response.status !== 200) {
+    throw new Error(`Upload failed with status ${response.status}: ${response.text}`);
+  }
+};
+
+// Function to retry the entire upload process (get URL + upload file) with less aggressive exponential backoff
+const retryUpload = async (
+  origin: string,
+  username: string,
+  password: string,
+  nonce: string,
+  filePath: string,
+  relativePath: string,
+  maxRetries: number = 5
+): Promise<void> => {
+  let attempt = 0;
+  let delay = 2000; // Start with a 2-second delay
+  const maxDelay = 10000; // Cap the delay at 10 seconds
+  const delayMultiplier = 1.5; // Use a less aggressive multiplier
+
+  while (attempt < maxRetries) {
+    try {
+      const uploadUrl = await getUploadUrl(origin, username, password, nonce, relativePath);
+
+      if (!uploadUrl) {
+        return; // Skip this file if it already exists
+      }
+
+      await uploadFile(filePath, uploadUrl);
+      return; // Successful upload, exit the function
+
+    } catch (error: any) {
+      attempt++;
+      if (attempt < maxRetries) {
+        console.warn(`Upload attempt ${attempt} failed. Retrying in ${delay / 1000} seconds...`);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        delay = Math.min(maxDelay, delay * delayMultiplier); // Less aggressive backoff with a max delay cap
+      } else {
+        console.error(`Max retries reached for ${relativePath}. Aborting.`);
+        throw error; // Abort the process after max retries
+      }
     }
-
-  } catch (error: any) {
-    console.error("Upload failed:", error.message || error);
-    throw error; // Re-throw to stop the upload process
   }
 };
 
@@ -94,25 +128,13 @@ export const uploadDirectory = async (
     Presets.shades_classic
   );
 
-  const uploadBar = multiBar.create(filesToUpload.length, 0, { name: "Files" });
+  const uploadBar = multiBar.create(filesToUpload.length, 0, { name: "Store Data" });
 
   try {
     for (const filePath of filesToUpload) {
       const relativePath = path.relative(storeDir, filePath).replace(/\\/g, "/"); // Convert to forward slashes
 
-      const uploadUrl = await getUploadUrl(
-        origin,
-        username,
-        password,
-        nonce,
-        relativePath,
-      );
-
-      if (!uploadUrl) {
-        throw new Error("Could not obtain upload URL");
-      }
-
-      await uploadFile(filePath, relativePath);
+      await retryUpload(origin, username, password, nonce, filePath, relativePath);
       uploadBar.increment();
     }
 

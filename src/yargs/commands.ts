@@ -31,6 +31,15 @@ export function initCommand(yargs: Argv<{}>) {
   );
 }
 
+export function serverCommand(yargs: Argv<{}>) {
+  return yargs.command(
+    "server",
+    "Preview your store in the browser",
+    {},
+    handlers.server
+  );
+}
+
 export function commitCommand(yargs: Argv<{}>) {
   return yargs.command(
     "commit",
@@ -111,18 +120,18 @@ export function storeCommand(yargs: Argv<{}>) {
   );
 }
 
-export function remoteSetCommand(yargs: Argv<{}>) {
+export function remoteCommand(yargs: Argv<{}>) {
   // @ts-ignore
   return yargs.command<{ connectionString: string }>(
-    "remote set <connectionString>",
-    "Set a remote connection",
+    "remote set <originConnectionString>",
+    "Set a datastore remote origin",
     (yargs: Argv<{ connectionString: string }>) => {
       return yargs.positional("connectionString", {
         type: "string",
-        describe: "The connection string for the remote",
+        describe: "The connection string for the datastore remote origin",
       });
     },
-    handlers.setRemote
+    handlers.setRemote(connectionString)
   );
 }
 
@@ -147,5 +156,41 @@ export function keysCommand(yargs: Argv<{}>) {
     async (argv: { action: string; mnemonic?: string }) => {
       await handlers.manageKeys(argv.action, argv.mnemonic);
     }
+  );
+}
+
+export function loginCommand(yargs: Argv<{}>) {
+  return yargs.command<{ user: string; pass: string }>(
+    "login",
+    "Set datastore login credentials",
+    (yargs: Argv<{ user: string; pass: string }>) => {
+      return yargs
+        .option("user", {
+          type: "string",
+          describe: "Username for login",
+        })
+        .option("pass", {
+          type: "string",
+          describe: "Password for login",
+        })
+        .check((argv) => {
+          if ((argv.user && !argv.pass) || (!argv.user && argv.pass)) {
+            throw new Error("--user and --pass must be provided together");
+          }
+          return true;
+        })
+    },
+    async (argv: {user: string, pass: string})=> {
+      await handlers.login(argv.user, argv.pass);
+    }
+  );
+}
+
+export function logoutCommand(yargs: Argv<{}>) {
+  return yargs.command(
+    "logout",
+    "Remove datastore login credentials",
+    {},
+    await handlers.logout
   );
 }

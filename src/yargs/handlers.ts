@@ -42,7 +42,7 @@ export const handlers = {
   validateStore: async () => {
     await validate();
   },
-  manageStore: async (argv) => {
+  manageStore: async (argv: {action: string} & any) => {
     try {
       switch (argv.action) {
         case "validate":

@@ -1,7 +1,7 @@
 import {DataIntegrityTree} from "../DataIntegrityTree";
 import {findStoreId} from "../blockchain/datastore";
 
-export const getProof = (key, sha256) => {
+export const getProof = async (key: string, sha256: string) => {
   try {
     const storeId = findStoreId()?.toString();
     if (!storeId){

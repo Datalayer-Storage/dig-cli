@@ -28,7 +28,7 @@
     "chia-bls": "^1.0.2",
     "chia-config-loader": "^1.0.1",
     "chia-root-resolver": "^1.0.0",
-    "chia-server-coin": "^0.0.4",
+    "chia-server-coin": "^0.0.5",
     "chia-wallet": "^1.0.18",
     "cli-progress": "^3.12.0",
     "crypto-js": "^4.2.0",

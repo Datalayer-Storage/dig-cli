@@ -74,8 +74,8 @@ export const handlers = {
         console.error("Unknown keys action");
     }
   },
-  login: async () => {
-    await login();
+  login: async (username, password) => {
+    await login(username, password);
   },
   logout: async () => {
     await logout();

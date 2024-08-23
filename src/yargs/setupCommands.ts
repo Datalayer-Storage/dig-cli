@@ -10,6 +10,8 @@ import {
   storeCommand,
   remoteSetCommand,
   keysCommand,
+  loginCommand, 
+  logoutCommand
   serverCommand,
 } from "./commands";
 import {set} from "lodash";
@@ -31,6 +33,8 @@ export async function setupCommands() {
   storeCommand(parser);
   remoteCommand(parser);
   keysCommand(parser);
+  loginCommand(parser);
+  logoutCommand(parser);
   serverCommand(parser);
 
   // Set default command and help

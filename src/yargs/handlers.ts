@@ -1,6 +1,7 @@
 import { getOrCreateMnemonic, deleteMnemonic, getMnemonic, importMnemonic } from "../blockchain/mnemonic";
-import { commit, push, pull, clone, setRemote, init, validate } from "../actions";
+import {commit, push, pull, clone, setRemote, init, validate, login} from "../actions";
 import { CreateStoreUserInputs } from '../types';
+import {logout} from "../actions/logout";
 import { startPreviewServer } from '../server';
 import { checkStoreWritePermissions } from "../actions";
 
@@ -75,4 +76,10 @@ export const handlers = {
         console.error("Unknown keys action");
     }
   },
+  login: async (username, password) => {
+    await login(username, password);
+  },
+  logout: async () => {
+    await logout();
+  }
 };

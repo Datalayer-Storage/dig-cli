@@ -146,3 +146,39 @@ export function keysCommand(yargs: Argv<{}>) {
     }
   );
 }
+
+export function loginCommand(yargs: Argv<{}>) {
+  return yargs.command<{ user: string; pass: string }>(
+    "login",
+    "Set datastore login credentials",
+    (yargs: Argv<{ user: string; pass: string }>) => {
+      return yargs
+        .option("user", {
+          type: "string",
+          describe: "Username for login",
+        })
+        .option("pass", {
+          type: "string",
+          describe: "Password for login",
+        })
+        .check((argv) => {
+          if ((argv.user && !argv.pass) || (!argv.user && argv.pass)) {
+            throw new Error("--user and --pass must be provided together");
+          }
+          return true;
+        })
+    },
+    async (argv: {user: string, pass: string})=> {
+      await handlers.login(argv.user, argv.pass);
+    }
+  );
+}
+
+export function logoutCommand(yargs: Argv<{}>) {
+  return yargs.command(
+    "logout",
+    "Remove datastore login credentials",
+    {},
+    await handlers.logout
+  );
+}

@@ -77,7 +77,7 @@ export function storeCommand(yargs: Argv<{}>) {
         .positional("action", {
           describe: "Action to perform on keys",
           type: "string",
-          choices: ["validate", "update", "remove"],
+          choices: ["validate", "update", "remove", "get_proof"],
         })
         .option("writer", {
           type: "string",
@@ -91,10 +91,22 @@ export function storeCommand(yargs: Argv<{}>) {
           type: "string",
           describe: "Specify an admin for the store",
         })
-        .strict();  // Ensures that only the defined options are accepted
+        .check((argv) => {
+          if (argv.action === "get_proof") {
+            if (!argv.key || !argv.sha256) {
+              throw new Error("The --key and --sha256 options are required for the 'get_proof' action.");
+            }
+          } else {
+            if (argv.key || argv.sha256) {
+              throw new Error("The --key and --sha256 options are only valid for the 'get_proof' action.");
+            }
+          }
+          return true;
+        })
+        .strict();
     },
-    async (argv: { action: string }) => {
-      await handlers.manageStore(argv.action);
+    async (argv) => {
+      await handlers.manageStore(argv);
     }
   );
 }

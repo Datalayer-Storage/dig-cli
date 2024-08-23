@@ -1,6 +1,6 @@
 import { getOrCreateMnemonic, deleteMnemonic, getMnemonic, importMnemonic } from "../blockchain/mnemonic";
-import { commit, push, pull, clone, setRemote, init, validate } from "../actions";
-import { CreateStoreUserInputs } from '../types';
+import {commit, push, pull, clone, setRemote, init, validate, getProof} from "../actions";
+import {CreateStoreUserInputs, ManageStoreArgs} from '../types';
 
 // Command handlers
 export const handlers = {
@@ -40,20 +40,29 @@ export const handlers = {
     await validate();
     console.log("Store validated");
   },
-  manageStore: async (action: string) => {
-    switch (action) {
-      case "validate":
-        await validate();
-        break;
-      case "update":
-      //  await upsertStore();
-        break;
-      case "remove":
-       // await removeStore();
-        break;
-      default:
-        console.error("Unknown store action");
+  manageStore: async (argv) => {
+    try {
+      switch (argv.action) {
+        case "validate":
+          await validate();
+          break;
+        case "update":
+          //  await upsertStore();
+          break;
+        case "remove":
+          // await removeStore();
+          break;
+        case "get_proof":
+          const {key, sha256} = argv;
+          await getProof(key, sha256);
+          break;
+        default:
+          console.error(`Unknown action ${argv.action}`)
+      }
+    } catch {
+      console.error('Invalid command structure')
     }
+
   },
   manageKeys: async (action: string, providedMnemonic?: string) => {
     switch (action) {

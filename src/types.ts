@@ -42,3 +42,13 @@ export interface Credentials {
   username: string;
   password: string;
 }
+
+export interface ManageStoreArgs {
+  action: string,
+  actionArgs: GetProof
+}
+
+export interface GetProof {
+  key: string,
+  sha256: string,
+}

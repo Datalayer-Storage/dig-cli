@@ -139,28 +139,28 @@ export function keysCommand(yargs: Argv<{}>) {
 }
 
 export function loginCommand(yargs: Argv<{}>) {
-  return yargs.command<{ username: string; password: string }>(
+  return yargs.command<{ user: string; pass: string }>(
     "login",
     "Set datastore login credentials",
-    (yargs: Argv<{ username: string; password: string }>) => {
+    (yargs: Argv<{ user: string; pass: string }>) => {
       return yargs
         .option("user", {
           type: "string",
           describe: "Username for login",
         })
-        .option("password", {
+        .option("pass", {
           type: "string",
           describe: "Password for login",
         })
         .check((argv) => {
-          if ((argv.user && !argv.password) || (!argv.user && argv.password)) {
-            throw new Error("--user and --password must be provided together");
+          if ((argv.user && !argv.pass) || (!argv.user && argv.pass)) {
+            throw new Error("--user and --pass must be provided together");
           }
           return true;
         })
     },
-    async (argv: {username: string, password: string})=> {
-      await handlers.login(argv.username, argv.password);
+    async (argv: {user: string, pass: string})=> {
+      await handlers.login(argv.user, argv.pass);
     }
   );
 }

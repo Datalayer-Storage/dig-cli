@@ -1,12 +1,15 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as https from "https";
-import * as http from "http";
 import { URL } from "url";
 import { MultiBar, Presets } from "cli-progress";
+import { getOrCreateSSLCerts } from "./ssl";
 import { getFilePathFromSha256 } from "./hashUtils";
 import { getServerCoinsByLauncherId } from "../blockchain/server_coin";
 import { getRootHistory } from "../blockchain/datastore";
+
+// Retrieve or generate SSL certificates
+const { certPath, keyPath } = getOrCreateSSLCerts();
 
 // Function to download a single file using a list of URLs, with retry and less aggressive exponential backoff
 const downloadFileFromUrls = async (
@@ -36,9 +39,18 @@ const downloadFileFromUrls = async (
 
         await new Promise<void>((resolve, reject) => {
           const urlObj = new URL(url);
-          const protocol = urlObj.protocol === "https:" ? https : http;
 
-          const request = protocol.get(url, (response) => {
+          const requestOptions = {
+            hostname: urlObj.hostname,
+            port: urlObj.port || 443,
+            path: urlObj.pathname + urlObj.search,
+            method: "GET",
+            key: fs.readFileSync(keyPath),
+            cert: fs.readFileSync(certPath),
+            rejectUnauthorized: false, // Allow self-signed certificates
+          };
+
+          const request = https.request(requestOptions, (response) => {
             if (response.statusCode === 200) {
               // Create the directory structure again as a safeguard
               const fileDir = path.dirname(filePath);
@@ -110,6 +122,21 @@ const downloadFileFromUrls = async (
   throw error;
 };
 
+// Function to download the height.dat file from the remote store
+const downloadHeightFile = async (
+  storeId: string,
+  digPeers: string[],
+  storeDir: string,
+  forceDownload: boolean = false
+): Promise<void> => {
+  const heightFilePath = path.join(storeDir, "height.dat");
+  const heightFileUrls = digPeers.map(
+    (digPeer) => `https://${digPeer}:4159/${storeId}/height.dat`
+  );
+  
+  await downloadFileFromUrls(heightFileUrls, heightFilePath, forceDownload);
+};
+
 // Function to pull files from remote based on the manifest and server coins
 export const pullFilesFromNetwork = async (
   storeId: string,
@@ -141,6 +168,9 @@ export const pullFilesFromNetwork = async (
       fs.mkdirSync(storeDir, { recursive: true });
     }
 
+    // Download height.dat file
+    await downloadHeightFile(storeId, digPeers, storeDir, forceDownload);
+
     // Calculate the total number of root hashes to be downloaded
     const totalFiles = rootHistory.length;
 
@@ -162,7 +192,7 @@ export const pullFilesFromNetwork = async (
 
       // .dat files are overwritable
       const datUrls = digPeers.map(
-        (digPeers) => `https://${digPeers}/stores/${storeId}/${rootHash}.dat`
+        (digPeer) => `https://${digPeer}:4159/${storeId}/${rootHash}.dat`
       );
       await downloadFileFromUrls(datUrls, datFilePath, forceDownload);
 
@@ -189,7 +219,7 @@ export const pullFilesFromNetwork = async (
         const isInDataDir = filePath.startsWith(path.join(storeDir, "data"));
         const fileUrls = digPeers.map(
           (digPeer) =>
-            `https://${digPeer}/stores/${storeId}/${path.relative(storeDir, filePath)}`
+            `https://${digPeer}:4159/${storeId}/${path.relative(storeDir, filePath)}`
         );
 
         await downloadFileFromUrls(

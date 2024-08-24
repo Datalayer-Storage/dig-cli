@@ -25,9 +25,6 @@ export const getDeltaFiles = async (
 
   console.log("");
   console.log(`Uploading delta from generation ${generationIndex}`);
-  console.log(`Upload can sometimes take a while.`);
-  console.log(`The server is verifying proofs and store integrity.`);
-  console.log(`We are working on improving performance.`)
 
   const filesInvolved: string[] = [];
 

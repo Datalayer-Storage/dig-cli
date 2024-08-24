@@ -7,12 +7,11 @@ import {
   updateDataStoreMetadata,
   getLatestStoreInfo,
 } from "../blockchain/datastore";
-import { serializeStoreInfo } from "../blockchain/serialization";
 import {
   DIG_FOLDER_PATH,
   getManifestFilePath,
   loadDigConfig,
-  getActiveStoreId
+  getActiveStoreId,
 } from "../utils/config";
 import { waitForConfirmation } from "../blockchain/coins";
 import { getPeer } from "../blockchain/peer";
@@ -31,7 +30,7 @@ export const commit = async (): Promise<void> => {
     }
 
     const storeId = await getActiveStoreId();
-    
+
     if (!storeId) {
       throw new Error("Store ID not found. Please run init first.");
     }
@@ -47,7 +46,7 @@ export const commit = async (): Promise<void> => {
       latestInfo.launcherId.toString("hex")
     );
 
-    const datalayer = new DataIntegrityTree(storeId.toString('hex'), {
+    const datalayer = new DataIntegrityTree(storeId.toString("hex"), {
       storageMode: "local",
       storeDir: DIG_FOLDER_PATH,
       disableInitialize: true,
@@ -77,6 +76,7 @@ export const commit = async (): Promise<void> => {
     );
 
     const updatedStoreInfo = await updateDataStoreMetadata({
+      ...latestInfo.metadata,
       rootHash: Buffer.from(newRootHash, "hex"),
       bytes: totalBytes,
     });
@@ -94,6 +94,13 @@ export const commit = async (): Promise<void> => {
     if (!storeIntegrityCheck) {
       throw new Error("Store integrity check failed.");
     }
+
+    await waitForPromise(
+      () => getLatestStoreInfo(storeId),
+      "Finalizing commit...",
+      "Commit successful",
+      "Failed to commit."
+    );
 
     console.log("Commit successful");
   } catch (error: any) {

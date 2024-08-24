@@ -1,12 +1,25 @@
 import * as fs from "fs";
-import * as path from "path";
 import { createDataLayerStore } from "../blockchain/datalayer";
-import { DataIntegrityTree, DataIntegrityTreeOptions } from "../DataIntegrityTree";
-import { DIG_FOLDER_PATH, MIN_HEIGHT, getHeightFilePath, setActiveStore, CONFIG_FILE_PATH, createInitialConfig } from "../utils/config";
+import {
+  DataIntegrityTree,
+  DataIntegrityTreeOptions,
+} from "../DataIntegrityTree";
+import {
+  DIG_FOLDER_PATH,
+  MIN_HEIGHT,
+  getHeightFilePath,
+  setActiveStore,
+  CONFIG_FILE_PATH,
+  createInitialConfig,
+} from "../utils/config";
 import { CreateStoreUserInputs } from "../types";
 import { getPeer } from "../blockchain/peer";
+import { getLatestStoreInfo } from "../blockchain/datastore";
+import { waitForPromise } from "../utils";
 
-export const init = async (inputs: CreateStoreUserInputs = {}): Promise<void> => {
+export const init = async (
+  inputs: CreateStoreUserInputs = {}
+): Promise<void> => {
   if (!fs.existsSync(DIG_FOLDER_PATH)) {
     fs.mkdirSync(DIG_FOLDER_PATH);
   }
@@ -25,7 +38,7 @@ export const init = async (inputs: CreateStoreUserInputs = {}): Promise<void> =>
 
     const options: DataIntegrityTreeOptions = {
       storageMode: "local",
-      storeDir: DIG_FOLDER_PATH
+      storeDir: DIG_FOLDER_PATH,
     };
 
     new DataIntegrityTree(storeId, options);
@@ -40,7 +53,18 @@ export const init = async (inputs: CreateStoreUserInputs = {}): Promise<void> =>
 
     setActiveStore(storeId);
 
-    console.log(`Store initialized at Block Height: ${currentHeight} | ${currentHeaderHash.toString('hex')}`);
+    await waitForPromise(
+      () => getLatestStoreInfo(Buffer.from(storeId, "hex")),
+      "Final store initialization...",
+      "Store initialized.",
+      "Failed to initialize the data layer store."
+    );
+
+    console.log(
+      `Store initialized at Block Height: ${currentHeight} | ${currentHeaderHash.toString(
+        "hex"
+      )}`
+    );
   } else {
     console.log("Failed to initialize the data layer store.");
     fs.rmSync(DIG_FOLDER_PATH, { recursive: true, force: true });

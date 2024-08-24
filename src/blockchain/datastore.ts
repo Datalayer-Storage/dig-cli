@@ -81,12 +81,14 @@ export const mintDataLayerStore = async (
       publicSyntheticKey,
       storeCreationCoins,
       rootHash,
-      label || "",
-      description || "",
+      label || undefined,
+      description || undefined,
       sizeInBytes || BigInt(0),
       ownerSyntheicPuzzleHash,
       delegationLayers,
     ];
+
+    console.log(mintStoreParams);
 
     // Preflight call to mintStore without a fee
     const { coinSpends: preflightCoinSpends } = await mintStore.apply(null, [
@@ -177,8 +179,21 @@ export const getLatestStoreInfo = async (
   }
 
   const heightFilePath = getHeightFilePath(storeId.toString("hex"));
-  const heightFile = fs.readFileSync(heightFilePath, "utf-8");
-  const { createdAtHeight, createdAtHash } = JSON.parse(heightFile || "{}");
+
+  let createdAtHeight: number | undefined;
+  let createdAtHash: string | undefined;
+
+  // Check if the height.dat file exists and read it if it does
+  if (fs.existsSync(heightFilePath)) {
+    try {
+      const heightFile = fs.readFileSync(heightFilePath, "utf-8");
+      const parsedHeightFile = JSON.parse(heightFile || "{}");
+      createdAtHeight = parsedHeightFile.createdAtHeight;
+      createdAtHash = parsedHeightFile.createdAtHash;
+    } catch (error) {
+      console.error("Error reading or parsing height.dat file:", error);
+    }
+  }
 
   // If not cached, retrieve the latest store info from the blockchain
   const { latestInfo, latestHeight } = await peer.syncStoreFromLauncherId(
@@ -263,12 +278,19 @@ export const getRootHistory = async (
 };
 
 export const hasMetadataWritePermissions = async (
-  storeId: Buffer
+  storeId: Buffer,
+  publicSyntheticKey?: Buffer
 ): Promise<boolean> => {
   try {
     const { latestInfo } = await getLatestStoreInfo(storeId);
 
-    const ownerPuzzleHash = await getOwnerPuzzleHash();
+    let ownerPuzzleHash;
+
+    if (publicSyntheticKey) {
+      ownerPuzzleHash = syntheticKeyToPuzzleHash(publicSyntheticKey);
+    } else {
+      ownerPuzzleHash = await getOwnerPuzzleHash();
+    }
 
     const isStoreOwner = latestInfo.ownerPuzzleHash.equals(ownerPuzzleHash);
 

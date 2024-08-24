@@ -11,7 +11,7 @@ export const MIN_HEIGHT = 5777842;
 export const MIN_HEIGHT_HEADER_HASH =
   "b29a4daac2434fd17a36e15ba1aac5d65012d4a66f99bed0bf2b5342e92e562c";
 
-export const DIG_FOLDER_PATH = path.join(process.cwd(), ".dig");
+export const DIG_FOLDER_PATH = process.env.DIG_FOLDER_PATH || path.join(process.cwd(), ".dig");
 export const CONFIG_FILE_PATH = path.join(DIG_FOLDER_PATH, "dig.config.json");
 export const getManifestFilePath = (storeId: string): string =>
   path.join(DIG_FOLDER_PATH, storeId, "manifest.dat");
@@ -66,6 +66,32 @@ const promptUserForSelection = async (options: string[]): Promise<string> => {
   const answer = await inquirer.prompt(questions);
   return answer.selectedStore;
 };
+
+export const getCoinState = (storeId: string): {metadata: { rootHash: string, bytes: string, label: string, description: string}} => {
+  const stateFile = path.join(DIG_FOLDER_PATH, `${storeId}.json`);
+  if (!fs.existsSync(stateFile)) {
+    return { metadata: { rootHash: "", bytes: "", label: "", description: "" } };
+  }
+
+  const stateContent = fs.readFileSync(stateFile, "utf-8");
+  const { latestInfo } = JSON.parse(stateContent);
+  return latestInfo;
+}
+
+/**
+ * Retrieves a list of valid store folders (64-character hexadecimal names) in the DIG folder.
+ *
+ * @returns {string[]} An array of valid folder names.
+ */
+export const getStoresList = (): string[] => {
+  const folders = fs.readdirSync(DIG_FOLDER_PATH);
+  return folders.filter(
+    (folder) =>
+      /^[a-f0-9]{64}$/.test(folder) &&
+      fs.lstatSync(path.join(DIG_FOLDER_PATH, folder)).isDirectory()
+  );
+};
+
 /**
  * Retrieves the active_store value from the dig.config.json file within the .dig directory.
  * If not set, checks the subfolders and prompts the user to choose the active one if necessary.
@@ -90,13 +116,7 @@ export const getActiveStoreId = async (): Promise<Buffer | null> => {
     return Buffer.from(config.active_store, "hex");
   }
 
-  // Check subfolders for 64-character hexadecimal names
-  const folders = fs.readdirSync(DIG_FOLDER_PATH);
-  const validFolders = folders.filter(
-    (folder) =>
-      /^[a-f0-9]{64}$/.test(folder) &&
-      fs.lstatSync(path.join(DIG_FOLDER_PATH, folder)).isDirectory()
-  );
+  const validFolders = getStoresList();
 
   if (validFolders.length === 1) {
     // If only one valid folder exists, set it as the active_store and return it

@@ -110,7 +110,7 @@ const downloadFileFromUrls = async (
   throw error;
 };
 
-// Function to pull files from origins based on the manifest and server coins
+// Function to pull files from remote based on the manifest and server coins
 export const pullFilesFromNetwork = async (
   storeId: string,
   directoryPath: string,

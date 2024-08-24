@@ -71,7 +71,7 @@ export function cloneCommand(yargs: Argv<{}>) {
     // @ts-ignore
     return yargs.command<{ storeId: string }>(
       "clone <storeId>",
-      "Clones a datastore from a remote origin",
+      "Clones a datastore from a remote remote",
       (yargs: Argv<{ storeId: string }>) => {
         return yargs.positional("storeId", {
           type: "string",
@@ -120,11 +120,11 @@ export function remoteCommand(yargs: Argv<{}>) {
   // @ts-ignore
   return yargs.command<{ peer: string }>(
     "remote set <peer>",
-    "Set a datastore remote origin",
+    "Set a datastore remote remote",
     (yargs: Argv<{ peer: string }>) => {
       return yargs.positional("peer", {
         type: "string",
-        describe: "The host of the peer to set as the remote origin",
+        describe: "The host of the peer to set as the remote remote",
       });
     },
     async (argv: {peer: string}) => {

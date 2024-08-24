@@ -9,7 +9,7 @@ import { getStoreCreatedAtHeight } from "../blockchain/datastore";
 
 // Function to request a signed upload URL
 const getUploadUrl = async (
-  origin: string,
+  remote: string,
   username: string,
   password: string,
   nonce: string,
@@ -21,7 +21,7 @@ const getUploadUrl = async (
     const { createdAtHeight, createdAtHash } = await getStoreCreatedAtHeight();
 
     const response = await superagent
-      .post(origin)
+      .post(remote)
       .auth(username, password)
       .send({
         key_ownership_sig: keyOwnershipSig,
@@ -63,7 +63,7 @@ const uploadFile = async (
 
 // Function to retry the entire upload process (get URL + upload file) with less aggressive exponential backoff
 const retryUpload = async (
-  origin: string,
+  remote: string,
   username: string,
   password: string,
   nonce: string,
@@ -78,7 +78,7 @@ const retryUpload = async (
 
   while (attempt < maxRetries) {
     try {
-      const uploadUrl = await getUploadUrl(origin, username, password, nonce, relativePath);
+      const uploadUrl = await getUploadUrl(remote, username, password, nonce, relativePath);
 
       if (!uploadUrl) {
         return; // Skip this file if it already exists
@@ -102,7 +102,7 @@ const retryUpload = async (
 
 // Function to handle the upload process for a directory
 export const uploadDirectory = async (
-  origin: string,
+  remote: string,
   username: string,
   password: string,
   nonce: string,
@@ -133,7 +133,7 @@ export const uploadDirectory = async (
     for (const filePath of filesToUpload) {
       const relativePath = path.relative(storeDir, filePath).replace(/\\/g, "/"); // Convert to forward slashes
 
-      await retryUpload(origin, username, password, nonce, filePath, relativePath);
+      await retryUpload(remote, username, password, nonce, filePath, relativePath);
       uploadBar.increment();
     }
 

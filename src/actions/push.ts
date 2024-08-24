@@ -49,7 +49,7 @@ const getUploadDetails = async (
         return false;
       }
     },
-    "Performing origin preflight",
+    "Performing remote preflight",
     "Preflight succeeded.",
     "Error on preflight."
   );
@@ -146,7 +146,7 @@ export const push = async (): Promise<void> => {
       generationIndex
     );
 
-    // Ensure server coin exists for the origin
+    // Ensure server coin exists for the remote
     const serverCoinExists = await doesHostExistInMirrors(
       storeId.toString("hex"),
       config.remote

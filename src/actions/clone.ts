@@ -8,7 +8,7 @@ export const clone = async (storeId: string): Promise<void> => {
   console.log(`Cloning store: ${storeId}`);
 
   try {
-    // Pull files from the origin
+    // Pull files from the remote
     await pullFilesFromNetwork(storeId, DIG_FOLDER_PATH);
   } catch (error: any) {
     console.error(error.message);
@@ -22,12 +22,12 @@ export const clone = async (storeId: string): Promise<void> => {
       "Store integrity check passed.",
       "Store integrity check failed."
     );
-
     if (!storeIntegrityCheck) {
       console.error("Store integrity check failed. Reverting Clone");
       fs.rmdirSync(DIG_FOLDER_PATH, { recursive: true });
     }
   } catch (error: any) {
+    console.trace(error.message);
     console.error("Store integrity check failed. Reverting Clone");
     fs.rmdirSync(DIG_FOLDER_PATH, { recursive: true });
   }

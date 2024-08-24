@@ -59,7 +59,11 @@ const hexToUtf8 = (hex: string): string => {
   return Buffer.from(hex, "hex").toString("utf-8");
 };
 
-const verifyStoreId = async (req: Request, res: Response, next: NextFunction) => {
+const verifyStoreId = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
     const { storeId } = req.params;
     const expectedStoreId = await getActiveStoreId();
@@ -68,7 +72,9 @@ const verifyStoreId = async (req: Request, res: Response, next: NextFunction) =>
       if (expectedStoreId) {
         return res.redirect(
           302,
-          `/${expectedStoreId.toString("hex")}/${encodeURIComponent(req.originalUrl)}`
+          `/${expectedStoreId.toString("hex")}/${encodeURIComponent(
+            req.originalUrl
+          )}`
         );
       } else {
         return res.status(400).send("Invalid store ID format.");
@@ -123,6 +129,15 @@ const startPreviewServer = (): Promise<void> => {
             if (hasIndex) {
               const stream = datalayer.getValueStream(indexKey);
               const fileExtension = extname("index.html").toLowerCase();
+              const sha256 = datalayer.getSHA256(indexKey);
+
+              if (!sha256) {
+                res.status(500).send("Error retrieving file.");
+                return;
+              }
+
+              const proofOfInclusion = datalayer.getProof(indexKey, sha256);
+              res.setHeader("x-proof-of-inclusion", proofOfInclusion);
 
               const mimeType =
                 mimeTypes[fileExtension] || "application/octet-stream";
@@ -158,7 +173,9 @@ const startPreviewServer = (): Promise<void> => {
           `);
         } catch (error) {
           console.error("Error in /:storeId route:", error);
-          res.status(500).send("An error occurred while processing your request.");
+          res
+            .status(500)
+            .send("An error occurred while processing your request.");
         }
       });
 
@@ -183,6 +200,15 @@ const startPreviewServer = (): Promise<void> => {
 
           const stream = datalayer.getValueStream(key);
           const fileExtension = extname(catchall).toLowerCase();
+          const sha256 = datalayer.getSHA256(key);
+
+          if (!sha256) {
+            res.status(500).send("Error retrieving file.");
+            return;
+          }
+
+          const proofOfInclusion = datalayer.getProof(key, sha256);
+          res.setHeader("x-proof-of-inclusion", proofOfInclusion);
 
           const mimeType =
             mimeTypes[fileExtension] || "application/octet-stream";
@@ -211,7 +237,9 @@ const startPreviewServer = (): Promise<void> => {
             )}`
           );
         } else {
-          console.error("Store ID not found. Please ensure it is correctly set up.");
+          console.error(
+            "Store ID not found. Please ensure it is correctly set up."
+          );
         }
       });
 

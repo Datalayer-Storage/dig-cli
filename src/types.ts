@@ -18,9 +18,10 @@ export interface CreateStoreUserInputs {
 }
 
 export interface DigConfig {
-    origin?: string;
-    deploy_dir: string;
-    [key: string]: any;
+  remote?: string;
+  deploy_dir: string;
+  active_store?: string;
+  [key: string]: any;
 }
 
 export interface RootHistoryItem {

@@ -27,7 +27,7 @@ import {
   DIG_FOLDER_PATH,
   getManifestFilePath,
   getHeightFilePath,
-  getActiveStoreId
+  getActiveStoreId,
 } from "../utils/config";
 import { selectUnspentCoins, calculateFeeForCoinSpends } from "./coins";
 import { RootHistoryItem, DatFile } from "../types";
@@ -178,7 +178,7 @@ export const getLatestStoreInfo = async (
 
   const heightFilePath = getHeightFilePath(storeId.toString("hex"));
   const heightFile = fs.readFileSync(heightFilePath, "utf-8");
-  const { createdAtHeight, createdAtHash } = JSON.parse(heightFile || '{}');
+  const { createdAtHeight, createdAtHash } = JSON.parse(heightFile || "{}");
 
   // If not cached, retrieve the latest store info from the blockchain
   const { latestInfo, latestHeight } = await peer.syncStoreFromLauncherId(
@@ -462,13 +462,13 @@ export const validateStore = async (): Promise<boolean> => {
         path.join(DIG_FOLDER_PATH, storeId.toString("hex"), "data")
       );
 
-      //if (process.env.DIG_DEBUG == "1") {
+      if (process.env.DIG_DEBUG == "1") {
         console.log(
           `Key ${fileKey}: SHA256 = ${fileData.sha256}, integrity: ${
             integrityCheck ? "OK" : "FAILED"
           }`
         );
-     // }
+      }
 
       if (!integrityCheck) {
         filesIntegrityIntact = false;

@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { createDataLayerStore } from "../blockchain/datalayer";
 import { DataIntegrityTree, DataIntegrityTreeOptions } from "../DataIntegrityTree";
-import { DIG_FOLDER_PATH, MIN_HEIGHT, getHeightFilePath, setActiveStore, CONFIG_FILE_PATH } from "../utils/config";
+import { DIG_FOLDER_PATH, MIN_HEIGHT, getHeightFilePath, setActiveStore, CONFIG_FILE_PATH, createInitialConfig } from "../utils/config";
 import { CreateStoreUserInputs } from "../types";
 import { getPeer } from "../blockchain/peer";
 
@@ -12,9 +12,7 @@ export const init = async (inputs: CreateStoreUserInputs = {}): Promise<void> =>
   }
 
   if (!fs.existsSync(CONFIG_FILE_PATH)) {
-    const initialConfig = { deploy_dir: "./dist", origin: "" };
-    fs.writeFileSync(CONFIG_FILE_PATH, JSON.stringify(initialConfig, null, 4));
-    console.log("Created dig.config.json file.");
+    createInitialConfig();
   }
 
   const peer = await getPeer();

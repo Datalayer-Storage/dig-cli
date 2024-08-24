@@ -18,6 +18,12 @@ export const getManifestFilePath = (storeId: string): string =>
 export const getHeightFilePath = (storeId: string): string =>
   path.join(DIG_FOLDER_PATH, storeId, "height.dat");
 
+export const createInitialConfig = (): void => {
+    const initialConfig = { deploy_dir: "./dist", remote: "" };
+    fs.writeFileSync(CONFIG_FILE_PATH, JSON.stringify(initialConfig, null, 4));
+    console.log("Created dig.config.json file.");
+}
+
 export const setRemote = (remote: string): void => {
   if (!fs.existsSync(CONFIG_FILE_PATH)) {
     throw new Error("Config file not found.");
@@ -27,7 +33,7 @@ export const setRemote = (remote: string): void => {
   config.remote = remote;
 
   fs.writeFileSync(CONFIG_FILE_PATH, JSON.stringify(config, null, 4));
-  console.log(`Origin set to ${remote}`);
+  console.log(`Remote set to ${remote}`);
 };
 
 export const setActiveStore = (storeId: string): void => {
@@ -48,18 +54,18 @@ export const setActiveStore = (storeId: string): void => {
  * @returns {Promise<string>} The selected folder name.
  */
 const promptUserForSelection = async (options: string[]): Promise<string> => {
-    const questions: any = [
-      {
-        type: "list",
-        name: "selectedStore",
-        message: "Select the active store:",
-        choices: options.map(option => ({ name: option, value: option })),
-      },
-    ];
-  
-    const answer = await inquirer.prompt(questions);
-    return answer.selectedStore;
-  };
+  const questions: any = [
+    {
+      type: "list",
+      name: "selectedStore",
+      message: "Select the active store:",
+      choices: options.map((option) => ({ name: option, value: option })),
+    },
+  ];
+
+  const answer = await inquirer.prompt(questions);
+  return answer.selectedStore;
+};
 /**
  * Retrieves the active_store value from the dig.config.json file within the .dig directory.
  * If not set, checks the subfolders and prompts the user to choose the active one if necessary.
@@ -70,7 +76,7 @@ export const getActiveStoreId = async (): Promise<Buffer | null> => {
   const configFilePath = path.join(DIG_FOLDER_PATH, "dig.config.json");
 
   if (!fs.existsSync(configFilePath)) {
-    throw new Error(`Configuration file does not exist: ${configFilePath}`);
+    createInitialConfig();
   }
 
   const configContent = fs.readFileSync(configFilePath, "utf-8");

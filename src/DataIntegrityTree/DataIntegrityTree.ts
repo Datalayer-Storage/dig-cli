@@ -489,6 +489,10 @@ class DataIntegrityTree {
     this._rebuildTree();
   }
 
+  getSHA256(hexKey: string): string | undefined {
+    return this.files.get(hexKey)?.sha256;
+  }
+
   /**
    * Get a proof for a file based on its key and SHA-256 hash.
    * @param hexKey - The hexadecimal key of the file.

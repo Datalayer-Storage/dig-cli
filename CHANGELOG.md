@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.13](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.12...v0.0.13) (2024-08-24)
+
+
+### Features
+
+* add propagation server and content server ([c2a49ed](https://github.com/Datalayer-Storage/dig-cli/commit/c2a49edfa2e5f2da0d292c81bba39eadec8fcc0c))
+
 ### [0.0.12](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.10...v0.0.12) (2024-08-24)
 
 

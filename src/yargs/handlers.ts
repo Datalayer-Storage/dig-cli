@@ -2,7 +2,7 @@ import { getOrCreateMnemonic, deleteMnemonic, getMnemonic, importMnemonic } from
 import {commit, push, pull, clone, setRemote, init, validate, login} from "../actions";
 import { CreateStoreUserInputs } from '../types';
 import {logout} from "../actions/logout";
-import { startPreviewServer } from '../server';
+import { startPreviewServer } from '../content_server';
 import { checkStoreWritePermissions } from "../actions";
 import { getActiveStoreId } from "../utils/config";
 

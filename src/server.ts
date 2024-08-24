@@ -70,12 +70,7 @@ const verifyStoreId = async (
 
     if (storeId.length !== 64) {
       if (expectedStoreId) {
-        return res.redirect(
-          302,
-          `/${expectedStoreId.toString("hex")}/${encodeURIComponent(
-            req.originalUrl
-          )}`
-        );
+        return res.redirect(302, `/${expectedStoreId.toString("hex")}${req.originalUrl}`);
       } else {
         return res.status(400).send("Invalid store ID format.");
       }

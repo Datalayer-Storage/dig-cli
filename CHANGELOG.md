@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.16](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.15...v0.0.16) (2024-08-25)
+
+
+### Bug Fixes
+
+* upload multibar ([309d322](https://github.com/Datalayer-Storage/dig-cli/commit/309d3220bfed8e18fd02f5c79847cf4e87b9fad3))
+
 ### [0.0.15](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.14...v0.0.15) (2024-08-25)
 
 

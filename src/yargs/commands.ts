@@ -93,7 +93,7 @@ export function storeCommand(yargs: Argv<{}>) {
     (yargs: Argv<{ action: string }>) => {
       return yargs
         .positional("action", {
-          describe: "Action to perform on keys",
+          describe: "The store action to perform",
           type: "string",
           choices: ["validate", "update", "remove", "get_root", "get_proof", "verify_proof", "list", "get_key"],
         })

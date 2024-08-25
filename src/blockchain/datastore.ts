@@ -143,7 +143,7 @@ export const getLatestStoreInfo = async (
   latestHeight: number;
   latestHash: Buffer;
 }> => {
-  const peer = await getPeer();
+  
   const cachedInfo = getCachedStoreInfo(storeId.toString("hex"));
 
   if (cachedInfo) {
@@ -154,6 +154,7 @@ export const getLatestStoreInfo = async (
         latestHash: previousHash,
       } = cachedInfo;
 
+      const peer = await getPeer();
       const { latestInfo, latestHeight } = await peer.syncStore(
         previousInfo,
         previousHeight,
@@ -194,6 +195,8 @@ export const getLatestStoreInfo = async (
       console.error("Error reading or parsing height.dat file:", error);
     }
   }
+
+  const peer = await getPeer();
 
   // If not cached, retrieve the latest store info from the blockchain
   const { latestInfo, latestHeight } = await peer.syncStoreFromLauncherId(
@@ -279,7 +282,8 @@ export const getRootHistory = async (
 
 export const hasMetadataWritePermissions = async (
   storeId: Buffer,
-  publicSyntheticKey?: Buffer
+  publicSyntheticKey?: Buffer,
+  retryCount: number = 10
 ): Promise<boolean> => {
   try {
     const { latestInfo } = await getLatestStoreInfo(storeId);
@@ -302,10 +306,17 @@ export const hasMetadataWritePermissions = async (
 
     return isStoreOwner || hasWriteAccess;
   } catch (error: any) {
-    console.trace(error.message);
-    throw new Error("Failed to check store ownership.");
+    if (error.message.includes("AlreadyClosed") && retryCount > 0) {
+      console.warn(`Retrying hasMetadataWritePermissions due to WebSocket closure... (${retryCount} retries left)`);
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      return hasMetadataWritePermissions(storeId, publicSyntheticKey, retryCount - 1);
+    } else {
+      console.trace(error.message);
+      throw new Error("Failed to check store ownership.");
+    }
   }
 };
+
 
 export const updateDataStoreMetadata = async ({
   rootHash,

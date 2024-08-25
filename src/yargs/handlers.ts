@@ -1,5 +1,18 @@
 import { getOrCreateMnemonic, deleteMnemonic, getMnemonic, importMnemonic } from "../blockchain/mnemonic";
-import {commit, push, pull, clone, setRemote, init, validate, login, logout, getProof, verfiyProof} from "../actions";
+import {
+  commit,
+  push,
+  pull,
+  clone,
+  setRemote,
+  init,
+  validate,
+  login,
+  logout,
+  getProof,
+  verfiyProof,
+  listKeys
+} from "../actions";
 import { CreateStoreUserInputs } from '../types';
 import { startPreviewServer } from '../content_server/server';
 import { checkStoreWritePermissions } from "../actions";
@@ -68,6 +81,10 @@ export const handlers = {
         case "verify_proof": {
           const {proof, sha256} = argv;
           await verfiyProof(proof, sha256);
+          break;
+        }
+        case "list": {
+          await listKeys();
           break;
         }
         default:

@@ -10,3 +10,4 @@ export * from './getProof';
 export * from './login';
 export * from './logout';
 export * from './verifyProof';
+export * from './listKeys';

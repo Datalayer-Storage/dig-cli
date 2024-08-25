@@ -3,7 +3,8 @@ import {getActiveStoreId} from "../utils/config";
 
 export const verfiyProof = async (proof: string, sha256: string) => {
   try {
-    const storeId = getActiveStoreId()?.toString();
+    const storeIdResult = getActiveStoreId();
+    const storeId = storeIdResult?.toString();
     if (!storeId){
       throw new Error('Failed to find datastore');
     }

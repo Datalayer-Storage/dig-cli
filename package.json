@@ -17,8 +17,14 @@
     "postrelease": "npm run build && git push --follow-tags && npm publish",
     "start-propagation-server": "ts-node src/propagation_server/index.ts",
     "start-content-server": "ts-node src/content_server/index.ts",
+    "start-sync-service": "ts-node src/sync_service/index.ts",
     "build-content-server": "docker build -t dig-content-server -f Dockerfile.content_server .",
-    "build-propagation-server": "docker build -t dig-propagation-server -f Dockerfile.propagation_server ."
+    "build-propagation-server": "docker build -t dig-propagation-server -f Dockerfile.propagation_server .",
+    "build-sync-service": "docker build -t dig-sync-service -f Dockerfile.sync_service .",
+    "release-propagation-server": "npm run build-propagation-server && docker tag dig-propagation-server michaeltaylor3d/dig-propagation-server:latest && docker push michaeltaylor3d/dig-propagation-server:latest",
+    "release-content-server": "npm run build-content-server && docker tag dig-content-server michaeltaylor3d/dig-content-server:latest && docker push michaeltaylor3d/dig-content-server:latest",
+    "release-sync-service": "npm run build-sync-service && docker tag dig-sync-service michaeltaylor3d/dig-sync-service:latest && docker push michaeltaylor3d/dig-sync-service:latest",
+    "release-all": "npm run release-propagation-server && npm run release-content-server && npm run release-sync-service"
   },
   "author": "",
   "license": "ISC",
@@ -45,6 +51,7 @@
     "merkletreejs": "^0.4.0",
     "nanospinner": "^1.1.0",
     "superagent": "^10.0.0",
+    "toad-scheduler": "^3.0.1",
     "yargs": "^17.7.2"
   },
   "devDependencies": {

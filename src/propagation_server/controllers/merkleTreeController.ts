@@ -1,7 +1,6 @@
 import fs from "fs";
 import path from "path";
 import { Request, Response } from "express";
-import { getStoresList } from "../../utils/config";
 import { getCredentials } from "../utils/authUtils";
 import { HttpError } from "../utils/HttpError";
 import { generateNonce } from "../utils/nonce";
@@ -18,7 +17,6 @@ const digFolderPath = getStorageLocation();
 // Controller to handle HEAD requests for /stores/:storeId
 export const headStore = async (req: Request, res: Response): Promise<void> => {
   try {
-    console.log("!!!!!!!!!!!!!!!!!!!!!!!");
     const authHeader = req.headers.authorization || "";
     const [providedUsername, providedPassword] = Buffer.from(
       authHeader.split(" ")[1],

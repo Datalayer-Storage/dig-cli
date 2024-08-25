@@ -68,8 +68,8 @@ const uploadFileDirect = async (
       reject(err);
     });
 
-    req.on("finish", () => {
-      resolve();
+    req.on("end", () => {
+      resolve(); // Resolve the promise when the upload is fully completed
     });
   });
 };
@@ -106,6 +106,7 @@ const retryUploadDirect = async (
         nonce
       );
       return; // Successful upload, exit the function
+
     } catch (error: any) {
       attempt++;
       if (attempt < maxRetries) {
@@ -175,8 +176,6 @@ export const uploadDirectory = async (
         publicKey.toString("hex"),
         nonce
       );
-
-      await new Promise((resolve) => setTimeout(resolve, 300)); // Add a small delay to avoid rate limiting
 
       uploadBar.increment();
     }

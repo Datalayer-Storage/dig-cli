@@ -117,18 +117,30 @@ export function storeCommand(yargs: Argv<{}>) {
 }
 
 export function remoteCommand(yargs: Argv<{}>) {
-  // @ts-ignore
-  return yargs.command<{ peer: string }>(
-    "remote set <peer>",
-    "Set a datastore remote remote",
-    (yargs: Argv<{ peer: string }>) => {
-      return yargs.positional("peer", {
-        type: "string",
-        describe: "The host of the peer to set as the remote remote",
-      });
+  return yargs.command(
+    "remote set <type> <value>",
+    "Set a datastore remote configuration (peer or seed)",
+    // @ts-ignore
+    (yargs: Argv<{ type: string; value: string }>) => {
+      return yargs
+        .positional("type", {
+          type: "string",
+          describe: "The type of configuration to set (peer or seed)",
+          choices: ["peer", "seed"],
+        })
+        .positional("value", {
+          type: "string",
+          describe: "The value to set for the specified configuration",
+        });
     },
-    async (argv: {peer: string}) => {
-      await handlers.setRemote(argv.peer);
+    async (argv: { type: string; value: string }) => {
+      if (argv.type === "peer") {
+        await handlers.setRemote(argv.value);
+      } else if (argv.type === "seed") {
+        await handlers.setRemoteSeed(argv.value);
+      } else {
+        console.error("Invalid type specified. Use 'peer' or 'seed'.");
+      }
     }
   );
 }

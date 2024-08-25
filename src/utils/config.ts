@@ -11,7 +11,8 @@ export const MIN_HEIGHT = 5777842;
 export const MIN_HEIGHT_HEADER_HASH =
   "b29a4daac2434fd17a36e15ba1aac5d65012d4a66f99bed0bf2b5342e92e562c";
 
-export const DIG_FOLDER_PATH = process.env.DIG_FOLDER_PATH || path.join(process.cwd(), ".dig");
+export const DIG_FOLDER_PATH =
+  process.env.DIG_FOLDER_PATH || path.join(process.cwd(), ".dig");
 export const CONFIG_FILE_PATH = path.join(DIG_FOLDER_PATH, "dig.config.json");
 export const getManifestFilePath = (storeId: string): string =>
   path.join(DIG_FOLDER_PATH, storeId, "manifest.dat");
@@ -19,10 +20,10 @@ export const getHeightFilePath = (storeId: string): string =>
   path.join(DIG_FOLDER_PATH, storeId, "height.dat");
 
 export const createInitialConfig = (): void => {
-    const initialConfig = { deploy_dir: "./dist", remote: "" };
-    fs.writeFileSync(CONFIG_FILE_PATH, JSON.stringify(initialConfig, null, 4));
-    console.log("Created dig.config.json file.");
-}
+  const initialConfig = { deploy_dir: "./dist", remote: "" };
+  fs.writeFileSync(CONFIG_FILE_PATH, JSON.stringify(initialConfig, null, 4));
+  console.log("Created dig.config.json file.");
+};
 
 export const setRemote = (remote: string): void => {
   if (!fs.existsSync(CONFIG_FILE_PATH)) {
@@ -67,16 +68,27 @@ const promptUserForSelection = async (options: string[]): Promise<string> => {
   return answer.selectedStore;
 };
 
-export const getCoinState = (storeId: string): {metadata: { rootHash: string, bytes: string, label: string, description: string}} => {
+export const getCoinState = (
+  storeId: string
+): {
+  metadata: {
+    rootHash: string;
+    bytes: string;
+    label: string;
+    description: string;
+  };
+} => {
   const stateFile = path.join(DIG_FOLDER_PATH, `${storeId}.json`);
   if (!fs.existsSync(stateFile)) {
-    return { metadata: { rootHash: "", bytes: "", label: "", description: "" } };
+    return {
+      metadata: { rootHash: "", bytes: "", label: "", description: "" },
+    };
   }
 
   const stateContent = fs.readFileSync(stateFile, "utf-8");
   const { latestInfo } = JSON.parse(stateContent);
   return latestInfo;
-}
+};
 
 /**
  * Retrieves a list of valid store folders (64-character hexadecimal names) in the DIG folder.
@@ -118,7 +130,7 @@ export const getActiveStoreId = async (): Promise<Buffer | null> => {
 
   const validFolders = getStoresList();
 
-  if (validFolders.length === 1) {
+  if (validFolders.length === 1 || process.env.REMOTE_NODE === "1") {
     // If only one valid folder exists, set it as the active_store and return it
     config.active_store = validFolders[0];
     fs.writeFileSync(configFilePath, JSON.stringify(config, null, 4));

@@ -95,7 +95,7 @@ export function storeCommand(yargs: Argv<{}>) {
         .positional("action", {
           describe: "Action to perform on keys",
           type: "string",
-          choices: ["validate", "update", "remove", "get_root", "get_proof", "verify_proof", "list"],
+          choices: ["validate", "update", "remove", "get_root", "get_proof", "verify_proof", "list", "get_key"],
         })
         .option ("key", {
           type: "string",
@@ -129,6 +129,10 @@ export function storeCommand(yargs: Argv<{}>) {
           } else if (argv.action === "verify_proof") {
             if (!argv.proof || !argv.sha256) {
               throw new Error(`The --proof and --sha256 options are required for the '${argv.action}' action.`);
+            }
+          } else if (argv.action === "get_key") {
+            if (!argv.key) {
+              throw new Error(`The --key option is required for the '${argv.action}' action.`);
             }
           }
           return true;

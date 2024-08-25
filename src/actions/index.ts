@@ -12,3 +12,4 @@ export * from './logout';
 export * from './verifyProof';
 export * from './listKeys';
 export * from './getRoot';
+export * from './getKey';

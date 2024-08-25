@@ -1,6 +1,7 @@
 import yargs, { Argv } from "yargs";
 import { handlers } from "./handlers";
 import { CreateStoreUserInputs } from "../types";
+import {isArrayBufferView} from "node:util/types";
 
 export function initCommand(yargs: Argv<{}>) {
   return yargs.command<CreateStoreUserInputs>(
@@ -94,11 +95,15 @@ export function storeCommand(yargs: Argv<{}>) {
         .positional("action", {
           describe: "Action to perform on keys",
           type: "string",
-          choices: ["validate", "update", "remove", "get_proof"],
+          choices: ["validate", "update", "remove", "get_proof", "verify_proof"],
         })
         .option ("key", {
           type: "string",
           describe: "The store key on which to operate"
+        })
+        .option ("proof", {
+          type: "string",
+          describe: "The proof to verify"
         })
         .option ("sha256", {
           type: "string",
@@ -117,17 +122,13 @@ export function storeCommand(yargs: Argv<{}>) {
           describe: "Specify an admin for the store",
         })
         .check((argv) => {
-          if (argv.action === "verify_proof" || argv.action === "get_proof") {
+          if (argv.action === "get_proof") {
             if (!argv.key || !argv.sha256) {
               throw new Error(`The --key and --sha256 options are required for the '${argv.action}' action.`);
             }
-          } else {
-            if (argv.key || argv.sha256) {
-              throw new Error(
-                  "The --key and --sha256 options are only valid for the following actions:" +
-                  "\n- 'get_proof'" +
-                  "\n- 'verify_proof'"
-              );
+          } else if (argv.action === "verify_proof") {
+            if (!argv.proof || !argv.sha256) {
+              throw new Error(`The --proof and --sha256 options are required for the '${argv.action}' action.`);
             }
           }
           return true;

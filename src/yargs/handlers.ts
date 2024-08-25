@@ -1,5 +1,5 @@
 import { getOrCreateMnemonic, deleteMnemonic, getMnemonic, importMnemonic } from "../blockchain/mnemonic";
-import {commit, push, pull, clone, setRemote, init, validate, login, logout, getProof} from "../actions";
+import {commit, push, pull, clone, setRemote, init, validate, login, logout, getProof, verfiyProof} from "../actions";
 import { CreateStoreUserInputs } from '../types';
 import { startPreviewServer } from '../content_server/server';
 import { checkStoreWritePermissions } from "../actions";
@@ -57,10 +57,16 @@ export const handlers = {
         case "remove":
           // await removeStore();
           break;
-        case "get_proof":
+        case "get_proof": {
           const {key, sha256} = argv;
           await getProof(key, sha256);
           break;
+        }
+        case "verify_proof": {
+          const {proof, sha256} = argv;
+          await verfiyProof(proof, sha256);
+          break;
+        }
         default:
           console.error(`Unknown action ${argv.action}`);
       }

@@ -1,7 +1,6 @@
 import { getOrCreateMnemonic, deleteMnemonic, getMnemonic, importMnemonic } from "../blockchain/mnemonic";
 import {commit, push, pull, clone, setRemote, init, validate, login, logout, getProof} from "../actions";
 import { CreateStoreUserInputs } from '../types';
-import {logout} from "../actions/logout";
 import { startPreviewServer } from '../content_server/server';
 import { checkStoreWritePermissions } from "../actions";
 import { getActiveStoreId } from "../utils/config";

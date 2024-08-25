@@ -68,8 +68,8 @@ const uploadFileDirect = async (
       reject(err);
     });
 
-    req.on("end", () => {
-      resolve(); // Resolve the promise when the upload is fully completed
+    req.on("finish", () => {
+      resolve();
     });
   });
 };
@@ -106,7 +106,6 @@ const retryUploadDirect = async (
         nonce
       );
       return; // Successful upload, exit the function
-
     } catch (error: any) {
       attempt++;
       if (attempt < maxRetries) {
@@ -134,11 +133,7 @@ export const uploadDirectory = async (
   const publicKey = await getPublicSyntheticKey();
 
   const storeDir = path.resolve(directory, storeId);
-  const filesToUpload = await getDeltaFiles(
-    storeId,
-    generationIndex,
-    directory
-  );
+  const filesToUpload = await getDeltaFiles(storeId, generationIndex, directory);
 
   if (filesToUpload.length === 0) {
     console.log("No files to upload.");
@@ -178,6 +173,11 @@ export const uploadDirectory = async (
       );
 
       uploadBar.increment();
+
+      // Render the progress bar immediately
+      uploadBar.render();
+
+      await new Promise((resolve) => setTimeout(resolve, 300)); // Add a small delay to avoid rate limiting
     }
   } catch (error: any) {
     console.error("Upload process failed:", error.message || error);

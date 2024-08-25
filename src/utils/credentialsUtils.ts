@@ -1,5 +1,6 @@
 import keytar from "keytar";
 import * as readline from "readline";
+import { randomBytes } from "crypto";
 import { Credentials } from "../types";
 
 // Function to prompt for username and password
@@ -57,4 +58,27 @@ export const clearCredentials = async (remote: string) => {
   if (usernameDeleted && passwordDeleted){
     console.log('Logged out of', remote);
   }
+}
+
+export function generateHighEntropyValue(length: number = 10): string {
+  const possibleChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()-_=+[]{}|;:',.<>?/~`";
+  const charSetSize = possibleChars.length;
+  let result = "";
+  let remainingBytes = randomBytes(length * 2); // Generate more random bytes than needed
+
+  for (let i = 0; i < length; i++) {
+    let randomValue;
+    do {
+      if (remainingBytes.length < 1) {
+        remainingBytes = randomBytes(length * 2); // Refill the buffer if it runs out
+      }
+      randomValue = remainingBytes[0];
+      remainingBytes = remainingBytes.slice(1); // Remove the used byte
+    } while (randomValue >= charSetSize * Math.floor(256 / charSetSize)); // Discard biased values
+
+    const randomIndex = randomValue % charSetSize;
+    result += possibleChars.charAt(randomIndex);
+  }
+
+  return result;
 }

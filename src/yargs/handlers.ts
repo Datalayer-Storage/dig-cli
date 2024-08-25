@@ -11,7 +11,7 @@ import {
   logout,
   getProof,
   verfiyProof,
-  listKeys
+  listKeys, getRoot
 } from "../actions";
 import { CreateStoreUserInputs } from '../types';
 import { startPreviewServer } from '../content_server/server';
@@ -85,6 +85,10 @@ export const handlers = {
         }
         case "list": {
           await listKeys();
+          break;
+        }
+        case "getRoot": {
+          await getRoot();
           break;
         }
         default:

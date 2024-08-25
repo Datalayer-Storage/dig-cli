@@ -4,7 +4,7 @@ const startPreviewServer = (): Promise<void> => {
   return new Promise((resolve, reject) => {
     try {
       server.listen(PORT, async () => {
-        console.log(`DIG Propagation Server Started`);
+        console.log(`DIG Propagation Server Started on port ${PORT}`);
       });
 
       server.on("close", resolve);

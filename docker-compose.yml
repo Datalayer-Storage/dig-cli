@@ -24,12 +24,13 @@ services:
     ports:
       - "4159:4159"
     volumes:
-      - ~/.dig:/root/.dig
+      - ~/.dig/stores:/.dig
     environment:
       - DIG_USERNAME=1
       - DIG_PASSWORD=1
-      - DIG_FOLDER_PATH=/root/.dig
+      - DIG_FOLDER_PATH=/.dig
       - PORT=4159
+      - DIG_MNEMONIC=tomato unaware wrist say genius boring exile fossil assault cruise horse twenty enroll fiction damage float time actor matrix security grocery search breeze damp
 
   content-server:
     image: michaeltaylor3d/dig-content-server:latest
@@ -38,9 +39,9 @@ services:
     ports:
       - "80:80"
     volumes:
-      - ~/.dig:/root/.dig
+      - ~/.dig/stores:/.dig
     environment:
-      - DIG_FOLDER_PATH=/root/.dig
+      - DIG_FOLDER_PATH=/.dig
       - PORT=80
 
 networks:

@@ -134,7 +134,7 @@ export const promptForRemote = async (): Promise<string> => {
     {
       type: 'input',
       name: 'remoteHost',
-      message: 'Please enter the remote host (with optional port):',
+      message: 'Please enter the remote peer ip:',
       validate: validateHost,
     },
   ];

@@ -301,7 +301,8 @@ export const hasMetadataWritePermissions = async (
     );
 
     return isStoreOwner || hasWriteAccess;
-  } catch (error) {
+  } catch (error: any) {
+    console.trace(error.message);
     throw new Error("Failed to check store ownership.");
   }
 };

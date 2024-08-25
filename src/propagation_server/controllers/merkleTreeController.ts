@@ -18,6 +18,7 @@ const digFolderPath = getStorageLocation();
 // Controller to handle HEAD requests for /stores/:storeId
 export const headStore = async (req: Request, res: Response): Promise<void> => {
     try {
+      console.log('!!!!!!!!!!!!!!!!!!!!!!!');
       const authHeader = req.headers.authorization || '';
       const [providedUsername, providedPassword] = Buffer.from(authHeader.split(' ')[1], 'base64')
         .toString('utf-8')
@@ -35,12 +36,6 @@ export const headStore = async (req: Request, res: Response): Promise<void> => {
   
       if (!storeId) {
         throw new HttpError(400, "Missing path parameters");
-      }
-  
-      const storeList = getStoresList();
-      if (!storeList.includes(storeId)) {
-        res.status(404).send("Store not found.");
-        return;
       }
   
       const manifestPath = path.join(digFolderPath, storeId, "manifest.dat");

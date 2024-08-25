@@ -176,6 +176,8 @@ export const uploadDirectory = async (
         nonce
       );
 
+      await new Promise((resolve) => setTimeout(resolve, 300)); // Add a small delay to avoid rate limiting
+
       uploadBar.increment();
     }
   } catch (error: any) {

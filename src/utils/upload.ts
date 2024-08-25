@@ -1,74 +1,90 @@
 import * as fs from "fs";
 import * as path from "path";
+import * as https from "https";
 import { MultiBar, Presets } from "cli-progress";
 import { getDeltaFiles } from ".";
-import superagent from "superagent";
+import { getOrCreateSSLCerts } from "./ssl";
 import { createKeyOwnershipSignature } from "../blockchain/signature";
 import { getPublicSyntheticKey } from "../blockchain/keys";
-import { getStoreCreatedAtHeight } from "../blockchain/datastore";
 
-// Function to request a signed upload URL
-const getUploadUrl = async (
-  origin: string,
-  username: string,
-  password: string,
-  nonce: string,
-  filename: string,
-): Promise<string | undefined> => {
-  try {
-    const keyOwnershipSig = await createKeyOwnershipSignature(nonce);
-    const publicSyntheticKey = await getPublicSyntheticKey();
-    const { createdAtHeight, createdAtHash } = await getStoreCreatedAtHeight();
+// Retrieve or generate SSL certificates
+const { certPath, keyPath } = getOrCreateSSLCerts();
 
-    const response = await superagent
-      .post(origin)
-      .auth(username, password)
-      .send({
-        key_ownership_sig: keyOwnershipSig,
-        public_key: publicSyntheticKey.toString("hex"),
-        filename: filename.replace(/\\/g, "/"),
-        nonce
-      })
-      .set("x-created-at-height", String(createdAtHeight))
-      .set("x-created-at-hash", createdAtHash.toString("hex"));
-
-    return response.body.uploadUrl;
-  } catch (error: any) {
-    if (error.status === 409) {
-      return undefined; // Skip this file by returning undefined
-    } else {
-      throw error; // Abort the process on any other error
-    }
-  }
-};
-
-// Function to upload a single file using the signed URL
-const uploadFile = async (
+// Function to upload a single file directly to the URL using a stream
+const uploadFileDirect = async (
   filePath: string,
   uploadUrl: string,
-): Promise<void> => {
-  const fileBuffer = fs.readFileSync(filePath);
-  const fileSize = fileBuffer.length;
-
-  const response = await superagent
-    .put(uploadUrl)
-    .set("Content-Type", "application/octet-stream")
-    .set("Content-Length", String(fileSize))
-    .send(fileBuffer);
-
-  if (response.status !== 200) {
-    throw new Error(`Upload failed with status ${response.status}: ${response.text}`);
-  }
-};
-
-// Function to retry the entire upload process (get URL + upload file) with less aggressive exponential backoff
-const retryUpload = async (
-  origin: string,
   username: string,
   password: string,
-  nonce: string,
+  keyOwnershipSig: string,
+  publicKey: string,
+  nonce: string
+): Promise<void> => {
+  const fileStream = fs.createReadStream(filePath);
+  const fileSize = fs.statSync(filePath).size;
+
+  return new Promise<void>((resolve, reject) => {
+    const url = new URL(uploadUrl);
+
+    const auth = Buffer.from(`${username}:${password}`).toString("base64");
+
+    const options = {
+      hostname: url.hostname,
+      port: url.port || 4159,
+      path: url.pathname,
+      method: "PUT",
+      key: fs.readFileSync(keyPath),
+      cert: fs.readFileSync(certPath),
+      headers: {
+        "Content-Type": "application/octet-stream",
+        "Content-Length": fileSize,
+        Authorization: `Basic ${auth}`,
+        "x-key-ownership-sig": keyOwnershipSig,
+        "x-public-key": publicKey,
+        "x-nonce": nonce,
+      },
+      rejectUnauthorized: false,
+    };
+
+    const req = https.request(options, (res) => {
+      if (res.statusCode === 200) {
+        resolve();
+      } else {
+        reject(
+          new Error(
+            `Upload failed with status ${res.statusCode}: ${res.statusMessage}`
+          )
+        );
+      }
+    });
+
+    req.on("error", (err) => {
+      reject(err);
+    });
+
+    fileStream.pipe(req);
+
+    fileStream.on("error", (err) => {
+      reject(err);
+    });
+
+    req.on("finish", () => {
+      resolve();
+    });
+  });
+};
+
+// Function to handle the retry logic for direct uploads
+const retryUploadDirect = async (
+  digPeer: string,
+  storeId: string,
   filePath: string,
   relativePath: string,
+  username: string,
+  password: string,
+  keyOwnershipSig: string,
+  publicKey: string,
+  nonce: string,
   maxRetries: number = 5
 ): Promise<void> => {
   let attempt = 0;
@@ -78,19 +94,21 @@ const retryUpload = async (
 
   while (attempt < maxRetries) {
     try {
-      const uploadUrl = await getUploadUrl(origin, username, password, nonce, relativePath);
+      const uploadUrl = `https://${digPeer}:4159/${storeId}/${relativePath}`; // Direct URL constructed here
 
-      if (!uploadUrl) {
-        return; // Skip this file if it already exists
-      }
-
-      await uploadFile(filePath, uploadUrl);
+      await uploadFileDirect(
+        filePath,
+        uploadUrl,
+        username,
+        password,
+        keyOwnershipSig,
+        publicKey,
+        nonce
+      );
       return; // Successful upload, exit the function
-
     } catch (error: any) {
       attempt++;
       if (attempt < maxRetries) {
-        console.warn(`Upload attempt ${attempt} failed. Retrying in ${delay / 1000} seconds...`);
         await new Promise((resolve) => setTimeout(resolve, delay));
         delay = Math.min(maxDelay, delay * delayMultiplier); // Less aggressive backoff with a max delay cap
       } else {
@@ -103,16 +121,23 @@ const retryUpload = async (
 
 // Function to handle the upload process for a directory
 export const uploadDirectory = async (
-  origin: string,
+  digPeer: string,
+  directory: string,
+  storeId: string,
   username: string,
   password: string,
   nonce: string,
-  directory: string,
-  storeId: string,
   generationIndex: number
 ): Promise<void> => {
+  const keyOwnershipSig = await createKeyOwnershipSignature(nonce);
+  const publicKey = await getPublicSyntheticKey();
+
   const storeDir = path.resolve(directory, storeId);
-  const filesToUpload = await getDeltaFiles(storeId, generationIndex, directory);
+  const filesToUpload = await getDeltaFiles(
+    storeId,
+    generationIndex,
+    directory
+  );
 
   if (filesToUpload.length === 0) {
     console.log("No files to upload.");
@@ -128,19 +153,36 @@ export const uploadDirectory = async (
     Presets.shades_classic
   );
 
-  const uploadBar = multiBar.create(filesToUpload.length, 0, { name: "Store Data" });
+  const uploadBar = multiBar.create(filesToUpload.length, 0, {
+    name: "Store Data",
+  });
 
   try {
     for (const filePath of filesToUpload) {
-      const relativePath = path.relative(storeDir, filePath).replace(/\\/g, "/"); // Convert to forward slashes
+      const relativePath = path
+        .relative(storeDir, filePath)
+        .replace(/\\/g, "/"); // Convert to forward slashes
 
-      await retryUpload(origin, username, password, nonce, filePath, relativePath);
+      // Handle direct uploads
+      await retryUploadDirect(
+        digPeer,
+        storeId,
+        filePath,
+        relativePath,
+        username,
+        password,
+        keyOwnershipSig,
+        publicKey.toString("hex"),
+        nonce
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, 300)); // Add a small delay to avoid rate limiting
+
       uploadBar.increment();
     }
-
   } catch (error: any) {
     console.error("Upload process failed:", error.message || error);
-    throw error;
+    throw error; // Re-throw the error to ensure the process halts
   } finally {
     multiBar.stop();
   }

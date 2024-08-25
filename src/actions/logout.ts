@@ -4,11 +4,11 @@ import {CONFIG_FILE_PATH, loadDigConfig} from "../utils/config";
 export const logout = async () => {
   try {
     const config = loadDigConfig('');
-    if (!config?.origin) {
-      throw new Error(`Field "origin" is not set in ${CONFIG_FILE_PATH}`);
+    if (!config?.remote) {
+      throw new Error(`Field "remote" is not set in ${CONFIG_FILE_PATH}`);
     }
 
-    await clearCredentials(config.origin);
+    await clearCredentials(config.remote);
 
   } catch (error: any) {
     console.error('Failed to logout from to datastore:', error.message);

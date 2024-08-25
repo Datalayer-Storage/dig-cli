@@ -6,7 +6,7 @@ import { serializeStoreInfo, deserializeStoreInfo } from "./serialization";
 
 // Define a file path to store the cached data
 export const getCacheFilePath = (launcherId: string): string => {
-  return path.join(DIG_FOLDER_PATH, `store-info.json`);
+  return path.join(DIG_FOLDER_PATH, `${launcherId}.json`);
 };
 
 // Function to get cached store info

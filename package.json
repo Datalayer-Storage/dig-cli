@@ -1,6 +1,6 @@
 {
   "name": "dig-cli",
-  "version": "0.0.4",
+  "version": "0.0.14",
   "description": "",
   "type": "commonjs",
   "main": "./dist/index.js",
@@ -14,7 +14,11 @@
     "server": "ts-node src/server.ts",
     "test": "mocha -r ts-node/register tests.ts",
     "release": "standard-version",
-    "postrelease": "npm run build && git push --follow-tags && npm publish"
+    "postrelease": "npm run build && git push --follow-tags && npm publish",
+    "start-propagation-server": "ts-node src/propagation_server/index.ts",
+    "start-content-server": "ts-node src/content_server/index.ts",
+    "build-content-server": "docker build -t dig-content-server -f Dockerfile.content_server .",
+    "build-propagation-server": "docker build -t dig-propagation-server -f Dockerfile.propagation_server ."
   },
   "author": "",
   "license": "ISC",

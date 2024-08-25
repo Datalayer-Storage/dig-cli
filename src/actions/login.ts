@@ -5,20 +5,20 @@ import keytar from "keytar";
 export const login = async (username = '', password = '') => {
   try {
     const config = loadDigConfig('');
-    if (!config?.origin) {
-      throw new Error(`Field "origin" is not set in ${CONFIG_FILE_PATH}`);
+    if (!config?.remote) {
+      throw new Error(`Field "remote" is not set in ${CONFIG_FILE_PATH}`);
     }
 
-    const existingUserName = await keytar.getPassword(config.origin, 'username');
+    const existingUserName = await keytar.getPassword(config.remote, 'username');
     if (existingUserName){
       throw new Error('You are already logged in to this datastore. Run "dig logout" to login again');
     }
 
     if (username && password){
-      await keytar.setPassword(config.origin, 'username', username);
-      await keytar.setPassword(config.origin, 'password', password);
+      await keytar.setPassword(config.remote, 'username', username);
+      await keytar.setPassword(config.remote, 'password', password);
     } else if (!username && !password){
-      await promptCredentials(config.origin);
+      await promptCredentials(config.remote);
     } else {
       throw new Error('Missing username or password')
     }

@@ -1,15 +1,27 @@
 import * as fs from "fs";
-import superagent from "superagent";
-import { promptCredentials, logApiRequest, waitForPromise } from "../utils";
-import { DIG_FOLDER_PATH, CONFIG_FILE_PATH } from "../utils/config";
+import { promptCredentials, waitForPromise } from "../utils";
+import {
+  DIG_FOLDER_PATH,
+  getActiveStoreId,
+  setRemote,
+  CONFIG_FILE_PATH,
+  ensureDigConfig,
+} from "../utils/config";
 import {
   doesHostExistInMirrors,
   createServerCoin,
 } from "../blockchain/server_coin";
-import { findStoreId, getLocalRootHistory } from "../blockchain/datastore";
+import { getLocalRootHistory } from "../blockchain/datastore";
 import { uploadDirectory } from "../utils/upload";
+import { promptForRemote } from "../prompts";
+import * as https from "https";
+import { URL } from "url";
+import { getOrCreateSSLCerts } from "../utils/ssl";
+import { DigConfig } from "../types";
 
-// Helper function to check if necessary files exist
+// Retrieve or generate SSL certificates
+const { certPath, keyPath } = getOrCreateSSLCerts();
+
 const checkRequiredFiles = (): void => {
   if (!fs.existsSync(DIG_FOLDER_PATH)) {
     throw new Error(".dig folder not found. Please run init first.");
@@ -20,37 +32,65 @@ const checkRequiredFiles = (): void => {
 };
 
 // Helper function to read and parse the config file
-const getConfig = (): { origin: string } => {
-  const config = JSON.parse(fs.readFileSync(CONFIG_FILE_PATH, "utf-8"));
-  if (!config.origin) {
-    throw new Error('The "origin" field is not set in the config file.');
-  }
+const getConfig = async (): Promise<DigConfig> => {
+  const config = await ensureDigConfig(DIG_FOLDER_PATH);
   return config;
 };
 
-// Helper function to get upload details
+// Helper function to get upload details using https
 const getUploadDetails = async (
-  origin: string,
+  remote: string,
   username: string,
   password: string
 ) => {
   return waitForPromise(
-    async () => {
-      try {
-        const request = superagent.head(origin).auth(username, password);
-        const response = await logApiRequest(request);
+    () => {
+      return new Promise<
+        | { lastUploadedHash: string; generationIndex: number; nonce: string }
+        | false
+      >((resolve, reject) => {
+        const url = new URL(remote);
 
-        return {
-          lastUploadedHash: response.headers["x-generation-hash"],
-          uploadType: response.headers["x-upload-type"],
-          nonce: response.headers["x-nonce"],
-          generationIndex: Number(response.headers["x-generation-index"]),
+        const options = {
+          hostname: url.hostname,
+          port: url.port || 4159,
+          path: url.pathname,
+          method: "HEAD",
+          key: fs.readFileSync(keyPath),
+          cert: fs.readFileSync(certPath),
+          headers: {
+            Authorization: `Basic ${Buffer.from(
+              `${username}:${password}`
+            ).toString("base64")}`,
+          },
+          rejectUnauthorized: false,
         };
-      } catch (error: any) {
-        return false;
-      }
+
+        const req = https.request(options, (res) => {
+          if (res.statusCode === 200) {
+            resolve({
+              lastUploadedHash: res.headers["x-generation-hash"] as string,
+              generationIndex: Number(res.headers["x-generation-index"]),
+              nonce: res.headers["x-nonce"] as string,
+            });
+          } else {
+            reject(
+              new Error(
+                `Failed to perform preflight check: ${res.statusCode} ${res.statusMessage}`
+              )
+            );
+          }
+        });
+
+        req.on("error", (err) => {
+          console.error(err.message);
+          resolve(false);
+        });
+
+        req.end();
+      });
     },
-    "Performing origin preflight",
+    "Performing remote preflight",
     "Preflight succeeded.",
     "Error on preflight."
   );
@@ -61,20 +101,21 @@ export const push = async (): Promise<void> => {
   try {
     checkRequiredFiles();
 
-    const config = getConfig();
-    const origin = new URL(config.origin);
+    const config = await getConfig();
 
-    const { username, password } = await promptCredentials(origin.hostname);
-    const storeId = await findStoreId();
+    if (!config?.remote) {
+      const remote = await promptForRemote();
+      setRemote(remote);
+      config.remote = remote;
+    }
+
+    const { username, password } = await promptCredentials(config.remote);
+    const storeId = await getActiveStoreId();
 
     if (!storeId) {
       throw new Error(
         "Could not find the store ID. Make sure you have committed your changes."
       );
-    }
-
-    if (!origin.pathname.includes(storeId.toString("hex"))) {
-      throw new Error("The origin URL is pointing to the wrong store id.");
     }
 
     const rootHistory = await getLocalRootHistory();
@@ -88,17 +129,21 @@ export const push = async (): Promise<void> => {
     const lastLocalRootHash = rootHistory[rootHistory.length - 1].root_hash;
     const localGenerationIndex = rootHistory.length - 1;
 
-    const preflight = await getUploadDetails(config.origin, username, password);
+    const standardOriginEndpoint = `https://${config.remote}/${storeId.toString(
+      "hex"
+    )}`;
+
+    const preflight = await getUploadDetails(
+      standardOriginEndpoint,
+      username,
+      password
+    );
 
     if (!preflight) {
       throw new Error("Failed to perform preflight check.");
     }
 
-    const { lastUploadedHash, generationIndex, nonce } = preflight as {
-      lastUploadedHash: string;
-      generationIndex: number;
-      nonce: string;
-    };
+    const { lastUploadedHash, generationIndex, nonce } = preflight;
 
     // Handle conditions based on the upload details
     if (
@@ -129,25 +174,25 @@ export const push = async (): Promise<void> => {
     }
 
     await uploadDirectory(
-      config.origin,
+      config.remote,
+      DIG_FOLDER_PATH,
+      storeId.toString("hex"),
       username,
       password,
       nonce,
-      DIG_FOLDER_PATH,
-      storeId.toString("hex"),
       generationIndex
     );
 
-    // Ensure server coin exists for the origin
-    const serverCoinExists = await doesHostExistInMirrors(
-      storeId.toString("hex"),
-      `${origin.protocol}//${origin.hostname}`
-    );
-    if (!serverCoinExists) {
-      console.log(`Creating server coin for ${origin.hostname}`);
-      await createServerCoin(storeId.toString("hex"), [
-        `${origin.protocol}//${origin.hostname}`,
-      ]);
+    // Dont automatically cereate server coin for localhost since they are not globally observable
+    if (!["localhost", "127.0.0.1"].includes(config.remote)) {
+      // Ensure server coin exists for the remote
+      const serverCoinExists = await doesHostExistInMirrors(
+        storeId.toString("hex"),
+        config.remote
+      );
+      if (!serverCoinExists) {
+        await createServerCoin(storeId.toString("hex"), [config.remote]);
+      }
     }
   } catch (error: any) {
     console.error(`Push failed: ${error.message}`);

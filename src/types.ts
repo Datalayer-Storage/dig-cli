@@ -6,7 +6,8 @@ export interface FileDetails {
 
 export interface Config {
   deploy_dir: string;
-  origin?: string;
+  remote?: string;
+  active_store?: string;
 }
 
 export interface CreateStoreUserInputs {
@@ -17,9 +18,10 @@ export interface CreateStoreUserInputs {
 }
 
 export interface DigConfig {
-    origin?: string;
-    deploy_dir: string;
-    [key: string]: any;
+  remote?: string;
+  deploy_dir: string;
+  active_store?: string;
+  [key: string]: any;
 }
 
 export interface RootHistoryItem {
@@ -41,11 +43,6 @@ export interface DatFile {
 export interface Credentials {
   username: string;
   password: string;
-}
-
-export interface ManageStoreArgs {
-  action: string,
-  actionArgs: GetProof
 }
 
 export interface GetProof {

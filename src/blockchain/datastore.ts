@@ -27,6 +27,7 @@ import {
   DIG_FOLDER_PATH,
   getManifestFilePath,
   getHeightFilePath,
+  getActiveStoreId,
 } from "../utils/config";
 import { selectUnspentCoins, calculateFeeForCoinSpends } from "./coins";
 import { RootHistoryItem, DatFile } from "../types";
@@ -80,12 +81,14 @@ export const mintDataLayerStore = async (
       publicSyntheticKey,
       storeCreationCoins,
       rootHash,
-      label || "",
-      description || "",
+      label || undefined,
+      description || undefined,
       sizeInBytes || BigInt(0),
       ownerSyntheicPuzzleHash,
       delegationLayers,
     ];
+
+    console.log(mintStoreParams);
 
     // Preflight call to mintStore without a fee
     const { coinSpends: preflightCoinSpends } = await mintStore.apply(null, [
@@ -176,8 +179,21 @@ export const getLatestStoreInfo = async (
   }
 
   const heightFilePath = getHeightFilePath(storeId.toString("hex"));
-  const heightFile = fs.readFileSync(heightFilePath, "utf-8");
-  const { createdAtHeight, createdAtHash } = JSON.parse(heightFile || '{}');
+
+  let createdAtHeight: number | undefined;
+  let createdAtHash: string | undefined;
+
+  // Check if the height.dat file exists and read it if it does
+  if (fs.existsSync(heightFilePath)) {
+    try {
+      const heightFile = fs.readFileSync(heightFilePath, "utf-8");
+      const parsedHeightFile = JSON.parse(heightFile || "{}");
+      createdAtHeight = parsedHeightFile.createdAtHeight;
+      createdAtHash = parsedHeightFile.createdAtHash;
+    } catch (error) {
+      console.error("Error reading or parsing height.dat file:", error);
+    }
+  }
 
   // If not cached, retrieve the latest store info from the blockchain
   const { latestInfo, latestHeight } = await peer.syncStoreFromLauncherId(
@@ -203,7 +219,7 @@ export const getStoreCreatedAtHeight = async (): Promise<{
   const defaultHash = Buffer.from(MIN_HEIGHT_HEADER_HASH, "hex");
 
   try {
-    const storeId = findStoreId();
+    const storeId = await getActiveStoreId();
     if (!storeId) {
       return { createdAtHeight: defaultHeight, createdAtHash: defaultHash };
     }
@@ -261,39 +277,20 @@ export const getRootHistory = async (
   return rootHistory;
 };
 
-/**
- * Finds the first top-level folder that is a 64-character hex string within the .dig directory.
- *
- * @param {string} dirPath - The .dig directory path.
- * @returns {string | null} The name of the folder if found, otherwise null.
- */
-export const findStoreId = (): Buffer | null => {
-  if (!fs.existsSync(DIG_FOLDER_PATH)) {
-    throw new Error(`Directory does not exist: ${DIG_FOLDER_PATH}`);
-  }
-
-  const folders = fs.readdirSync(DIG_FOLDER_PATH);
-
-  for (const folder of folders) {
-    const folderPath = path.join(DIG_FOLDER_PATH, folder);
-    if (
-      fs.lstatSync(folderPath).isDirectory() &&
-      /^[a-f0-9]{64}$/.test(folder)
-    ) {
-      return Buffer.from(folder, "hex");
-    }
-  }
-
-  return null;
-};
-
 export const hasMetadataWritePermissions = async (
-  storeId: Buffer
+  storeId: Buffer,
+  publicSyntheticKey?: Buffer
 ): Promise<boolean> => {
   try {
     const { latestInfo } = await getLatestStoreInfo(storeId);
 
-    const ownerPuzzleHash = await getOwnerPuzzleHash();
+    let ownerPuzzleHash;
+
+    if (publicSyntheticKey) {
+      ownerPuzzleHash = syntheticKeyToPuzzleHash(publicSyntheticKey);
+    } else {
+      ownerPuzzleHash = await getOwnerPuzzleHash();
+    }
 
     const isStoreOwner = latestInfo.ownerPuzzleHash.equals(ownerPuzzleHash);
 
@@ -304,7 +301,8 @@ export const hasMetadataWritePermissions = async (
     );
 
     return isStoreOwner || hasWriteAccess;
-  } catch (error) {
+  } catch (error: any) {
+    console.trace(error.message);
     throw new Error("Failed to check store ownership.");
   }
 };
@@ -315,7 +313,7 @@ export const updateDataStoreMetadata = async ({
   description,
   bytes,
 }: DataStoreMetadata) => {
-  const storeId = findStoreId();
+  const storeId = await getActiveStoreId();
   if (!storeId) {
     throw new Error("No data store found in the current directory");
   }
@@ -371,7 +369,7 @@ export const updateDataStoreMetadata = async ({
 export const getLocalRootHistory = async (): Promise<
   RootHistoryItem[] | undefined
 > => {
-  const storeId = findStoreId();
+  const storeId = await getActiveStoreId();
 
   if (!storeId) {
     throw new Error("No launcher ID found in the current directory");
@@ -397,7 +395,7 @@ export const getLocalRootHistory = async (): Promise<
 };
 
 export const validateStore = async (): Promise<boolean> => {
-  const storeId = findStoreId();
+  const storeId = await getActiveStoreId();
 
   if (!storeId) {
     console.error("No launcher ID found in the current directory");
@@ -436,6 +434,9 @@ export const validateStore = async (): Promise<boolean> => {
 
   // Check if the root history has more hashes than the manifest file
   if (rootHistory.length > manifestHashes.length) {
+    console.error(rootHistory.length, manifestHashes.length);
+    console.error(rootHistory);
+    console.error(manifestHashes);
     console.error(
       "The store is not synced: Root history has more hashes than the manifest file."
     );

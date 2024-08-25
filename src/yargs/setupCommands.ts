@@ -14,8 +14,6 @@ import {
   logoutCommand,
   serverCommand,
 } from "./commands";
-import {set} from "lodash";
-import {setRemote} from "../actions";
 
 // Configure and run Yargs
 export async function setupCommands() {

@@ -1,6 +1,7 @@
 import inquirer from "inquirer";
 import * as bip39 from "bip39";
 import { CreateStoreUserInputs } from "./types";
+import fs from "fs";
 
 export const askForStoreDetails = async (
   inputs: CreateStoreUserInputs = {}
@@ -49,7 +50,7 @@ export const askForStoreDetails = async (
     questions.push({
       type: "input",
       name: "oracleFee",
-      message: "Enter the oracle fee (optional, default is 100000):",
+      message: "Enter the oracle fee, in Mojos (optional, default is 100000):",
       default: 100000,
       filter: (input: any) => parseInt(input, 10),
       validate: (input: any) => !isNaN(input) || "Oracle fee must be a number.",
@@ -117,4 +118,27 @@ export const askForMnemonicInput = async (): Promise<{ providedMnemonic: string 
   ];
 
   return inquirer.prompt(questions);
+};
+
+const hostPattern = /^[a-zA-Z0-9.-]+(:[0-9]{1,5})?$/;
+
+const validateHost = (input: string): boolean | string => {
+  if (hostPattern.test(input)) {
+    return true;
+  }
+  return 'Please enter a valid host (e.g., example.com or example.com:8080)';
+};
+
+export const promptForRemote = async (): Promise<string> => {
+  const questions: any = [
+    {
+      type: 'input',
+      name: 'remoteHost',
+      message: 'Please enter the remote peer ip:',
+      validate: validateHost,
+    },
+  ];
+
+  const answers = await inquirer.prompt<{ remoteHost: string }>(questions);
+  return answers.remoteHost;
 };

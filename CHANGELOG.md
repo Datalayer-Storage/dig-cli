@@ -2,6 +2,62 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.14](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.13...v0.0.14) (2024-08-25)
+
+
+### Bug Fixes
+
+* tweak rate limiting in upload ([6d90c71](https://github.com/Datalayer-Storage/dig-cli/commit/6d90c71ecc51f691a55c33ae4bc2d5f564ad24b1))
+
+### [0.0.13](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.12...v0.0.13) (2024-08-24)
+
+
+### Features
+
+* add propagation server and content server ([c2a49ed](https://github.com/Datalayer-Storage/dig-cli/commit/c2a49edfa2e5f2da0d292c81bba39eadec8fcc0c))
+
+### [0.0.12](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.10...v0.0.12) (2024-08-24)
+
+
+### Features
+
+* add propagation server and content server ([5d0d765](https://github.com/Datalayer-Storage/dig-cli/commit/5d0d7657809c73456f6b354aee168ebb19d95bdc))
+
+### [0.0.11](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.10...v0.0.11) (2024-08-24)
+
+### [0.0.10](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.9...v0.0.10) (2024-08-24)
+
+
+### Bug Fixes
+
+* server ([3cbd1af](https://github.com/Datalayer-Storage/dig-cli/commit/3cbd1afea003d21c68e2a5259c76df2286975ae0))
+
+### [0.0.9](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.8...v0.0.9) (2024-08-24)
+
+### [0.0.8](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.7...v0.0.8) (2024-08-24)
+
+### [0.0.7](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.6...v0.0.7) (2024-08-24)
+
+
+### Features
+
+* add proof of inclusion to server header response ([b95fa9e](https://github.com/Datalayer-Storage/dig-cli/commit/b95fa9e5485c13825a915b67849b5d5d730bbf95))
+
+### [0.0.6](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.5...v0.0.6) (2024-08-24)
+
+### [0.0.5](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.4...v0.0.5) (2024-08-23)
+
+
+### Features
+
+* multi store support ([edd7fab](https://github.com/Datalayer-Storage/dig-cli/commit/edd7fabc092cdb89cb24625b2a2678fb24ff2f98))
+
+
+### Bug Fixes
+
+* merge conflicts ([e7300c3](https://github.com/Datalayer-Storage/dig-cli/commit/e7300c38f372aad74a076776cec69e549b1e10e2))
+* ts errors ([a982a68](https://github.com/Datalayer-Storage/dig-cli/commit/a982a687bba531258cbfcf10f788ff2f242d15b6))
+
 ### [0.0.4](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.3...v0.0.4) (2024-08-23)
 
 ### [0.0.3](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.2...v0.0.3) (2024-08-23)

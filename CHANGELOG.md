@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.15](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.14...v0.0.15) (2024-08-25)
+
+
+### Features
+
+* add mnemonic endpoint ([c76eeee](https://github.com/Datalayer-Storage/dig-cli/commit/c76eeeea785c9b5f812cae7afaa81f1ea1934e0c))
+
+
+### Bug Fixes
+
+* retry logic and burst caching for peers ([055317e](https://github.com/Datalayer-Storage/dig-cli/commit/055317ed6054c0df57a8cc6cac90816a2f8c7ac2))
+
 ### [0.0.14](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.13...v0.0.14) (2024-08-25)
 
 

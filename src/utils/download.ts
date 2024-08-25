@@ -141,7 +141,8 @@ const downloadHeightFile = async (
 export const pullFilesFromNetwork = async (
   storeId: string,
   directoryPath: string,
-  forceDownload: boolean = false // Optional parameter to force redownload
+  forceDownload: boolean = false, // Optional parameter to force redownload
+  renderProgressBar: boolean = true // Optional parameter to control progress bar rendering
 ): Promise<void> => {
   try {
     const serverCoins = await getServerCoinsByLauncherId(storeId);
@@ -152,13 +153,11 @@ export const pullFilesFromNetwork = async (
       const error = new Error(
         "No roots found in rootHistory. Cannot proceed with file download."
       );
-      console.trace(error);
       throw error;
     }
 
     if (digPeers.length === 0) {
       const error = new Error("No DIG Peers found to download files from.");
-      console.trace(error);
       throw error;
     }
 
@@ -174,16 +173,19 @@ export const pullFilesFromNetwork = async (
     // Calculate the total number of root hashes to be downloaded
     const totalFiles = rootHistory.length;
 
-    const multiBar = new MultiBar(
-      {
-        clearOnComplete: false,
-        hideCursor: true,
-        format: "Syncing Store | {bar} | {percentage}%",
-      },
-      Presets.shades_classic
-    );
+    let progressBar: MultiBar | null = null;
+    if (renderProgressBar) {
+      progressBar = new MultiBar(
+        {
+          clearOnComplete: false,
+          hideCursor: true,
+          format: "Syncing Store | {bar} | {percentage}%",
+        },
+        Presets.shades_classic
+      );
+    }
 
-    const progressBar = multiBar.create(totalFiles, 0);
+    const progress = progressBar ? progressBar.create(totalFiles, 0) : null;
 
     // Process each root hash in order
     for (const { root_hash: rootHash } of rootHistory) {
@@ -206,7 +208,9 @@ export const pullFilesFromNetwork = async (
         throw error;
       }
 
-      progressBar.increment(); // Update for .dat file
+      if (progress) {
+        progress.increment(); // Update for .dat file
+      }
 
       // Download all the files associated with the current generation
       for (const file of Object.keys(datFileContent.files)) {
@@ -227,7 +231,9 @@ export const pullFilesFromNetwork = async (
           filePath,
           forceDownload || !isInDataDir
         );
-        progressBar.increment(); // Update for each file downloaded
+        if (progress) {
+          progress.increment(); // Update for each file downloaded
+        }
       }
 
       // Append the processed hash to the local manifest.dat file
@@ -235,10 +241,12 @@ export const pullFilesFromNetwork = async (
       fs.appendFileSync(localManifestPath, `${rootHash}\n`);
     }
 
-    multiBar.stop();
+    if (progressBar) {
+      progressBar.stop();
+    }
+
     console.log("Syncing store complete.");
   } catch (error: any) {
-    console.trace("Error during sync:", error);
     throw error;
   }
 };

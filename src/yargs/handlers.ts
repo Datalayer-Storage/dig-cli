@@ -42,6 +42,9 @@ export const handlers = {
   setRemote: async (peer: string) => {
     await setRemote(peer);
   },
+  setRemoteSeed: async (seed: string) => {
+    await setRemote(seed);
+  },
   validateStore: async () => {
     await validate();
   },

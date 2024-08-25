@@ -88,6 +88,14 @@ export function storeCommand(yargs: Argv<{}>) {
           type: "string",
           choices: ["validate", "update", "remove", "get_proof"],
         })
+        .option ("key", {
+          type: "string",
+          describe: "The store key on which to operate"
+        })
+        .option ("sha256", {
+          type: "string",
+          describe: "The sha256 hash of the data corresponding to a store key"
+        })
         .option("writer", {
           type: "string",
           describe: "Specify an authorized writer for the store",
@@ -101,13 +109,17 @@ export function storeCommand(yargs: Argv<{}>) {
           describe: "Specify an admin for the store",
         })
         .check((argv) => {
-          if (argv.action === "get_proof") {
+          if (argv.action === "verify_proof" || argv.action === "get_proof") {
             if (!argv.key || !argv.sha256) {
-              throw new Error("The --key and --sha256 options are required for the 'get_proof' action.");
+              throw new Error(`The --key and --sha256 options are required for the '${argv.action}' action.`);
             }
           } else {
             if (argv.key || argv.sha256) {
-              throw new Error("The --key and --sha256 options are only valid for the 'get_proof' action.");
+              throw new Error(
+                  "The --key and --sha256 options are only valid for the following actions:" +
+                  "\n- 'get_proof'" +
+                  "\n- 'verify_proof'"
+              );
             }
           }
           return true;

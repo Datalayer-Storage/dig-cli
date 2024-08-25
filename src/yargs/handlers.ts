@@ -59,7 +59,7 @@ export const handlers = {
           await getProof(key, sha256);
           break;
         default:
-          console.error(`Unknown action ${argv.action}`)
+          console.error(`Unknown action ${argv.action}`);
       }
     } catch {
       console.error('Invalid command structure')

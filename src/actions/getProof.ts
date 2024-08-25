@@ -12,7 +12,7 @@ export const getProof = async (key: string, sha256: string) => {
 
     console.log(`Proof for key ${key}\nand sha256 hash ${sha256}:`);
     console.log(proof);
-  } catch (error) {
-    console.error('Cannot get proof:', error)
+  } catch (error: any) {
+    console.error('Cannot get proof:', error.message);
   }
 }

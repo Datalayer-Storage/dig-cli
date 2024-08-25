@@ -1,13 +1,11 @@
-import { lookupService } from 'dns';
+import {publicIpv4} from 'public-ip';
 
-export const getPublicIpAddress = (): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    lookupService('resolver1.opendns.com', 80, (err, hostname) => {
-      if (err) {
-        return reject(err);
-      }
-      const publicIp = hostname.split('.').slice(-4).join('.');
-      resolve(publicIp);
-    });
-  });
-}
+export const getPublicIpAddress = async (): Promise<string> => {
+  try {
+    const ipAddress = await publicIpv4(); // For IPv4
+    // const ipAddress = await publicIp.v6(); // For IPv6
+    return ipAddress;
+  } catch (error) {
+    throw new Error('Failed to retrieve public IP address');
+  }
+};

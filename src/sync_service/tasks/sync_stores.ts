@@ -58,6 +58,7 @@ const task = new Task("sync-stores", async () => {
       // Check if there is a server coin for the store and create one if there is not
       // TODO: This is a good spot to add expiring server coin renewal logic
       const publicIp = await getPublicIpAddress();
+      console.log(`Found public ip for machine: ${publicIp}`);
       const serverCoinExists = await doesHostExistInMirrors(storeId, publicIp);
       if (!serverCoinExists) {
         await createServerCoin(storeId, [publicIp]);

@@ -105,6 +105,8 @@ export const commit = async (): Promise<void> => {
     console.log("Commit successful");
   } catch (error: any) {
     console.error("Failed to commit:", error.message);
+  } finally {
+    process.exit();
   }
 };
 

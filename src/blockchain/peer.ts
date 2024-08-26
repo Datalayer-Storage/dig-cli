@@ -19,8 +19,10 @@ const DNS_HOSTS = [
 const CONNECTION_TIMEOUT = 2000;
 const CACHE_DURATION = 30000; // Cache duration in milliseconds (e.g., 30 seconds)
 const METHOD_TIMEOUT = 60000; // Timeout duration for peer methods (1 minute)
+const MAX_RETRIES = 3; // Maximum number of retries before giving up
 
 let cachedPeer: { peer: Peer; timestamp: number } | null = null;
+let retryCount = 0;
 
 // Utility Functions
 const isPortReachable = (
@@ -123,15 +125,26 @@ const createTimeoutProxy = (peer: Peer, timeout: number): Peer => {
           );
 
           try {
-            return await Promise.race([originalMethod.apply(target, args), timeoutPromise]);
+            const result = await Promise.race([
+              originalMethod.apply(target, args),
+              timeoutPromise,
+            ]);
+            retryCount = 0; // Reset retry count on success
+            return result;
           } catch (error: any) {
-            if (error.message.includes("Method timed out")) {
+            if (
+              error.message.includes("Method timed out") &&
+              retryCount < MAX_RETRIES
+            ) {
               cachedPeer = null;
               clearMemoizedIPs();
+              retryCount++;
+              console.log(
+                `Retrying... (${retryCount}/${MAX_RETRIES}) after timeout`
+              );
               const newPeer = await getPeer();
               return (newPeer as any)[prop](...args);
             }
-
             throw error;
           }
         };
@@ -180,7 +193,11 @@ const setupTlsFiles = async () => {
   return { certFile, keyFile };
 };
 
-const createPeers = async (peerIPs: string[], certFile: string, keyFile: string) => {
+const createPeers = async (
+  peerIPs: string[],
+  certFile: string,
+  keyFile: string
+) => {
   return Promise.all(
     peerIPs.map(async (ip) => {
       if (ip) {
@@ -202,7 +219,10 @@ const createPeers = async (peerIPs: string[], certFile: string, keyFile: string)
   ).then((results) => results.filter((peer) => peer !== null) as Peer[]);
 };
 
-const selectBestPeer = async (peers: Peer[], peerIPs: string[]): Promise<number> => {
+const selectBestPeer = async (
+  peers: Peer[],
+  peerIPs: string[]
+): Promise<number> => {
   const peakHeights = await Promise.all(
     peers.map((peer) =>
       peer
@@ -246,7 +266,7 @@ export const getServerCoinPeer = async (): Promise<ServerCoinPeer> => {
     return peer;
   } catch (error: any) {
     console.error(`Failed to get valid peer for ServerCoin: ${error.message}`);
-    console.log("trying again...");
+    console.log("Trying again...");
     return getServerCoinPeer();
   }
 };

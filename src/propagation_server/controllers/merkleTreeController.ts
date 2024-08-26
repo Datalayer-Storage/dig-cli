@@ -210,7 +210,7 @@ export const putStore = async (req: Request, res: Response): Promise<void> => {
     console.log("User has write access to the store.");
 
     // Construct the full path where the file should be stored
-    const fullPath = path.join(digFolderPath, fileKey);
+    const fullPath = path.join(digFolderPath, 'stores', fileKey);
     console.log("Saving file to:", fullPath);
 
     // Ensure the directory exists

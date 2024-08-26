@@ -26,8 +26,8 @@ services:
     volumes:
       - ~/.dig/remote:/.dig
     environment:
-      - DIG_USERNAME=1
-      - DIG_PASSWORD=1
+      - DIG_USERNAME=Q;fgB=]]af-)R3@XLssj
+      - DIG_PASSWORD=m>AI^Gt(dFp}vYKc,?7-
       - DIG_FOLDER_PATH=/.dig
       - PORT=4159
       - REMOTE_NODE=1

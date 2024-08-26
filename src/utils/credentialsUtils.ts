@@ -1,18 +1,62 @@
-import keytar from "keytar";
 import * as readline from "readline";
-import { randomBytes } from "crypto";
+import crypto from "crypto";
+import { NconfManager } from "../utils/nconfManager";
+import { EncryptedData, encryptData, decryptData } from "../utils/encryption";
 import { Credentials } from "../types";
 
-// Function to prompt for username and password
-export const promptCredentials = async (remote: string): Promise<Credentials> => {
-  // Check if credentials are already stored in keytar
-  const storedUsername = await keytar.getPassword(remote, "username");
-  const storedPassword = await keytar.getPassword(remote, "password");
+// Validate that the remote is a valid IP address
+const validateIPAddress = (ip: string): boolean => {
+  const ipRegex =
+    /^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+  return ipRegex.test(ip);
+};
 
-  if (storedUsername && storedPassword) {
-    console.log(`Using stored credentials for remote`);
-    return { username: storedUsername, password: storedPassword };
+// Encrypt and store credentials using the NconfManager
+export const encryptAndStoreCredentials = async (
+  nconfManager: NconfManager,
+  remote: string,
+  key: string,
+  value: string
+) => {
+  const encryptedData = encryptData(value);
+  const existingData = await nconfManager.getConfigValue<{
+    [key: string]: EncryptedData;
+  }>(remote);
+
+  const updatedData = {
+    ...(existingData || {}),
+    [key]: encryptedData,
+  };
+
+  await nconfManager.setConfigValue(remote, updatedData);
+  console.log(`${key} stored securely for remote ${remote}.`);
+};
+
+// Retrieve and decrypt credentials from the NconfManager
+export const retrieveAndDecryptCredentials = async (
+  nconfManager: NconfManager,
+  remote: string,
+  key: string
+): Promise<string | null> => {
+  const existingData = await nconfManager.getConfigValue<{
+    [key: string]: EncryptedData;
+  }>(remote);
+
+  if (existingData && existingData[key]) {
+    return decryptData(existingData[key]);
   }
+  return null;
+};
+
+// Function to prompt for username and password
+export const promptCredentials = async (
+  remote: string
+): Promise<Credentials> => {
+  if (!validateIPAddress(remote)) {
+    throw new Error("Invalid IP address. Please enter a valid IP address.");
+  }
+
+  const nconfManager = new NconfManager("credentials.json");
 
   // If not stored, prompt the user for credentials
   const rl = readline.createInterface({
@@ -28,49 +72,56 @@ export const promptCredentials = async (remote: string): Promise<Credentials> =>
 
   // Ask if the user wants to store the credentials
   const storeCredentials = await askQuestion(
-    `Would you like to store these credentials for later use? (y/n): `
+    `Would you like to store these credentials for later use? (Remember to add these to your remote node env) (y/n): `
   );
 
   rl.close();
 
   if (storeCredentials.toLowerCase() === "y") {
-    await keytar.setPassword(remote, "username", username);
-    await keytar.setPassword(remote, "password", password);
-    console.log("Credentials stored securely.");
+    await encryptAndStoreCredentials(
+      nconfManager,
+      remote,
+      "username",
+      username
+    );
+    await encryptAndStoreCredentials(
+      nconfManager,
+      remote,
+      "password",
+      password
+    );
   }
 
   return { username, password };
 };
 
 export const clearCredentials = async (remote: string) => {
-  const username = await keytar.getPassword(remote, "username");
+  const nconfManager = new NconfManager("credentials.json");
 
-  const usernameDeleted = await keytar.deletePassword(remote, "username");
-  if (!usernameDeleted) {
-    throw new Error('unable to delete username credential');
-  }
+  const existingData = await nconfManager.getConfigValue<{
+    [key: string]: EncryptedData;
+  }>(remote);
 
-  const passwordDeleted = await keytar.deletePassword(remote, "password");
-  if (!passwordDeleted){
-    throw new Error(`unable to delete password credential for user ${username}`);
+  if (existingData && (existingData.username || existingData.password)) {
+    await nconfManager.setConfigValue(remote, {}); // Clear the credentials for the remote
+    console.log(`Credentials for remote ${remote} have been cleared.`);
+  } else {
+    console.log(`No credentials found for remote ${remote}.`);
   }
-
-  if (usernameDeleted && passwordDeleted){
-    console.log('Logged out of', remote);
-  }
-}
+};
 
 export function generateHighEntropyValue(length: number = 10): string {
-  const possibleChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()-_=+[]{}|;:',.<>?/~`";
+  const possibleChars =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()-_=+[]{}|;:',.<>?/~`";
   const charSetSize = possibleChars.length;
   let result = "";
-  let remainingBytes = randomBytes(length * 2); // Generate more random bytes than needed
+  let remainingBytes = crypto.randomBytes(length * 2); // Generate more random bytes than needed
 
   for (let i = 0; i < length; i++) {
     let randomValue;
     do {
       if (remainingBytes.length < 1) {
-        remainingBytes = randomBytes(length * 2); // Refill the buffer if it runs out
+        remainingBytes = crypto.randomBytes(length * 2); // Refill the buffer if it runs out
       }
       randomValue = remainingBytes[0];
       remainingBytes = remainingBytes.slice(1); // Remove the used byte

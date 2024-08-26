@@ -15,12 +15,14 @@ import {
   login,
   syncRemoteSeed as _syncRemoteSeed,
   setRemoteSeed as _setRemoteSeed,
+  generateEntropyValue
 } from "../actions";
 import { CreateStoreUserInputs } from "../types";
 import { logout } from "../actions/logout";
 import { startPreviewServer } from "../content_server/server";
 import { checkStoreWritePermissions } from "../actions";
 import { getActiveStoreId } from "../utils/config";
+import { generateHighEntropyValue } from "../utils/credentialsUtils";
 
 // Command handlers
 export const handlers = {
@@ -67,6 +69,9 @@ export const handlers = {
   },
   validateStore: async () => {
     await validate();
+  },
+  generateCreds: async () => {
+    await generateEntropyValue();
   },
   manageStore: async (action: string) => {
     switch (action) {

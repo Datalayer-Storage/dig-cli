@@ -11,13 +11,16 @@ import {
   validateStore,
 } from "../../blockchain/datastore";
 import { pullFilesFromNetwork } from "../../utils/download";
-import { getPublicIpAddress } from "../../utils/network";
 import {
   doesHostExistInMirrors,
   createServerCoin,
 } from "../../blockchain/server_coin";
+import { NconfManager } from "../../utils/nconfManager";
 
-const syncStore = async (storeId: string, publicIp: string): Promise<void> => {
+const PUBLIC_IP_KEY = "publicIp";
+const nconfManager = new NconfManager("config.json");
+
+const syncStore = async (storeId: string): Promise<void> => {
   console.log(`Starting sync process for store ${storeId}...`);
 
   try {
@@ -31,6 +34,7 @@ const syncStore = async (storeId: string, publicIp: string): Promise<void> => {
     console.log(`Store ${storeId} is out of date. Syncing...`);
     await syncStoreFromNetwork(storeId);
 
+    /* This might cause problems when the latest root isnt on any available peers yet
     const isValid = await validateStoreIntegrity(storeId);
     if (isValid) {
       console.log(`Store ${storeId} synced successfully.`);
@@ -41,11 +45,11 @@ const syncStore = async (storeId: string, publicIp: string): Promise<void> => {
       await resyncStoreFromScratch(storeId);
       console.log(`Resync completed for store ${storeId}.`);
     }
+      */
   } catch (error: any) {
     console.error(`Error processing store ${storeId}: ${error.message}`);
   } finally {
     await finalizeStoreSync(storeId);
-    await ensureServerCoinExists(storeId, publicIp);
   }
 };
 
@@ -133,25 +137,36 @@ const task = new Task("sync-stores", async () => {
   console.log("Starting sync-stores task...");
 
   const storeList = getStoresList();
-  let publicIp: string | undefined;
+  let publicIp: string | null | undefined;
 
   try {
-    publicIp = await getPublicIpAddress();
-    console.log(`Found public IP for machine: ${publicIp}`);
+    publicIp = await nconfManager.getConfigValue(PUBLIC_IP_KEY);
+    if (publicIp) {
+      console.log(`Retrieved public IP from configuration: ${publicIp}`);
+    } else {
+      console.warn(
+        "No public IP found in configuration, skipping server coin creation."
+      );
+    }
   } catch (error: any) {
-    console.error(`Failed to retrieve public IP address: ${error.message}`);
+    console.error(
+      `Failed to retrieve public IP from configuration: ${error.message}`
+    );
     return; // Exit the task if we can't retrieve the public IP
   }
 
   for (const storeId of storeList) {
-    if (publicIp) {
-      try {
-        await syncStore(storeId, publicIp);
-      } catch (error: any) {
-        console.error(`Failed to sync store ${storeId}: ${error.message}`);
+    try {
+      await syncStore(storeId);
+      if (publicIp) {
+        await ensureServerCoinExists(storeId, publicIp);
+      } else {
+        console.warn(
+          `Skipping server coin check for store ${storeId} due to missing public IP.`
+        );
       }
-    } else {
-      console.warn(`Skipping store ${storeId} due to missing public IP.`);
+    } catch (error: any) {
+      console.error(`Failed to sync store ${storeId}: ${error.message}`);
     }
   }
 

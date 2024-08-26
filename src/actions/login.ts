@@ -1,6 +1,6 @@
-import {CONFIG_FILE_PATH, loadDigConfig} from "../utils/config";
-import {promptCredentials} from "../utils";
-import keytar from "keytar";
+import { CONFIG_FILE_PATH, loadDigConfig } from "../utils/config";
+import { promptCredentials, encryptAndStoreCredentials, retrieveAndDecryptCredentials } from "../utils/credentialsUtils";
+import { NconfManager } from "../utils/nconfManager";
 
 export const login = async (username = '', password = '') => {
   try {
@@ -9,18 +9,20 @@ export const login = async (username = '', password = '') => {
       throw new Error(`Field "remote" is not set in ${CONFIG_FILE_PATH}`);
     }
 
-    const existingUserName = await keytar.getPassword(config.remote, 'username');
-    if (existingUserName){
+    const nconfManager = new NconfManager("credentials.json");
+
+    const existingUserName = await retrieveAndDecryptCredentials(nconfManager, config.remote, 'username');
+    if (existingUserName) {
       throw new Error('You are already logged in to this datastore. Run "dig logout" to login again');
     }
 
-    if (username && password){
-      await keytar.setPassword(config.remote, 'username', username);
-      await keytar.setPassword(config.remote, 'password', password);
-    } else if (!username && !password){
+    if (username && password) {
+      await encryptAndStoreCredentials(nconfManager, config.remote, 'username', username);
+      await encryptAndStoreCredentials(nconfManager, config.remote, 'password', password);
+    } else if (!username && !password) {
       await promptCredentials(config.remote);
     } else {
-      throw new Error('Missing username or password')
+      throw new Error('Missing username or password');
     }
   } catch (error: any) {
     console.error('Failed to login to datastore:', error.message);

@@ -116,6 +116,18 @@ export function storeCommand(yargs: Argv<{}>) {
   );
 }
 
+export function generateCredsCommand(yargs: Argv<{}>) {
+  return yargs.command(
+    "generate creds",
+    "Generate and store credentials securely",
+    {},
+    async () => {
+      await handlers.generateCreds();
+    }
+  );
+}
+
+
 export function remoteCommand(yargs: Argv<{}>) {
   return yargs
     .command(

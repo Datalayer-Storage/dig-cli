@@ -32,9 +32,6 @@ COPY . .
 RUN npm install
 RUN npm i datalayer-driver-linux-x64-gnu
 
-# Rebuild the keytar module for the current environment
-RUN npm rebuild keytar --build-from-source
-
 # Expose the port the app runs on (if necessary)
 EXPOSE 4159
 

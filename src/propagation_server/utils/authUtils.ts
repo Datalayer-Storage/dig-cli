@@ -1,12 +1,11 @@
 import {HttpError } from "./HttpError";
-import keytar from "keytar";
 
 export const getCredentials = async () => {
-    const username = process.env.DIG_USERNAME || await keytar.getPassword('storeService', 'username');
-    const password = process.env.DIG_PASSWORD || await keytar.getPassword('storeService', username || 'username');
+    const username = process.env.DIG_USERNAME;
+    const password = process.env.DIG_PASSWORD;
     
     if (!username || !password) {
-      throw new HttpError(500, "Missing credentials for authentication");
+      throw new HttpError(500, "Propagation Server does not have credentials set, please add them to the ENV to use this feature.");
     }
   
     return { username, password };

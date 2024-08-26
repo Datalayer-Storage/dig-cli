@@ -68,20 +68,20 @@ export function pullCommand(yargs: Argv<{}>) {
 }
 
 export function cloneCommand(yargs: Argv<{}>) {
-    // @ts-ignore
-    return yargs.command<{ storeId: string }>(
-      "clone <storeId>",
-      "Clones a datastore from a remote remote",
-      (yargs: Argv<{ storeId: string }>) => {
-        return yargs.positional("storeId", {
-          type: "string",
-          describe: "The storId to clone down",
-        });
-      },
-      async (argv: {storeId: string}) => {
-        await handlers.clone(argv.storeId);
-      }
-    );
+  // @ts-ignore
+  return yargs.command<{ storeId: string }>(
+    "clone <storeId>",
+    "Clones a datastore from a remote remote",
+    (yargs: Argv<{ storeId: string }>) => {
+      return yargs.positional("storeId", {
+        type: "string",
+        describe: "The storId to clone down",
+      });
+    },
+    async (argv: { storeId: string }) => {
+      await handlers.clone(argv.storeId);
+    }
+  );
 }
 
 export function storeCommand(yargs: Argv<{}>) {
@@ -127,7 +127,6 @@ export function generateCredsCommand(yargs: Argv<{}>) {
   );
 }
 
-
 export function remoteCommand(yargs: Argv<{}>) {
   return yargs
     .command(
@@ -145,14 +144,6 @@ export function remoteCommand(yargs: Argv<{}>) {
       }
     )
     .command(
-      "remote sync seed",
-      "Sync the mnemonic seed with the remote datastore",
-      {},
-      async () => {
-        await handlers.syncRemoteSeed();
-      }
-    )
-    .command(
       "remote set seed <seed>",
       "Set the mnemonic seed on the remote datastore",
       // @ts-ignore
@@ -165,9 +156,16 @@ export function remoteCommand(yargs: Argv<{}>) {
       async (argv: { seed: string }) => {
         await handlers.setRemoteSeed(argv.seed);
       }
+    )
+    .command(
+      "remote sync seed",
+      "Sync the mnemonic seed with the remote datastore",
+      (yargs) => yargs,  // No positional arguments
+      async () => {
+        await handlers.syncRemoteSeed();
+      }
     );
 }
-
 
 
 export function keysCommand(yargs: Argv<{}>) {

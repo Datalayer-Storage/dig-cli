@@ -229,9 +229,7 @@ export const getServerCoinPeer = async (): Promise<ServerCoinPeer> => {
 
   try {
     const tls = new Tls(certFile, keyFile);
-    console.log('%%%');
     const hosts = await getPeerIPs();
-    console.log('***');
     const peer = ServerCoinPeer.connect(
       `${hosts[0]}:${FULLNODE_PORT}`,
       "mainnet",

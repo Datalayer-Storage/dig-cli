@@ -61,6 +61,7 @@ export const handlers = {
     await setRemote(peer);
   },
   syncRemoteSeed: async () => {
+    console.log("Syncing remote seed");
     await _syncRemoteSeed();
   },
   setRemoteSeed: async (seed: string) => {

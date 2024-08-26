@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.25](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.24...v0.0.25) (2024-08-26)
+
+
+### Features
+
+* add peer timeout logic ([f1865f2](https://github.com/Datalayer-Storage/dig-cli/commit/f1865f24a020e162bd13f1980e1db81cb0679be4))
+
 ### [0.0.24](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.23...v0.0.24) (2024-08-26)
 
 

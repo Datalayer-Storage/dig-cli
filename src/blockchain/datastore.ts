@@ -24,10 +24,10 @@ import {
   NETWORK_AGG_SIG_DATA,
   MIN_HEIGHT,
   MIN_HEIGHT_HEADER_HASH,
-  DIG_FOLDER_PATH,
   getManifestFilePath,
   getHeightFilePath,
   getActiveStoreId,
+  STORE_PATH,
 } from "../utils/config";
 import { selectUnspentCoins, calculateFeeForCoinSpends } from "./coins";
 import { RootHistoryItem, DatFile } from "../types";
@@ -387,7 +387,7 @@ export const getLocalRootHistory = async (): Promise<
   // Load manifest file
   const manifestFilePath = getManifestFilePath(storeId.toString("hex"));
   if (!fs.existsSync(manifestFilePath)) {
-    console.error("Manifest file not found");
+    console.error("Manifest file not found", manifestFilePath);
     return undefined;
   }
 
@@ -424,7 +424,7 @@ export const validateStore = async (): Promise<boolean> => {
   // Load manifest file
   const manifestFilePath = getManifestFilePath(storeId.toString("hex"));
   if (!fs.existsSync(manifestFilePath)) {
-    console.error("Manifest file not found");
+    console.error("Manifest file not found", manifestFilePath);
     return false;
   }
 
@@ -466,7 +466,7 @@ export const validateStore = async (): Promise<boolean> => {
   // Validate each root hash
   for (const rootHash of manifestHashes) {
     const datFilePath = path.join(
-      DIG_FOLDER_PATH,
+      STORE_PATH,
       storeId.toString("hex"),
       `${rootHash}.dat`
     );
@@ -491,7 +491,7 @@ export const validateStore = async (): Promise<boolean> => {
     for (const [fileKey, fileData] of Object.entries(datFileContent.files)) {
       const integrityCheck = validateFileSha256(
         fileData.sha256,
-        path.join(DIG_FOLDER_PATH, storeId.toString("hex"), "data")
+        path.join(STORE_PATH, storeId.toString("hex"), "data")
       );
 
       if (process.env.DIG_DEBUG == "1") {

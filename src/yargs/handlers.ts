@@ -20,15 +20,15 @@ import {
   getRoot,
   getKey,
   upsertData,
+  upsertFile, deleteKey
   syncRemoteSeed as _syncRemoteSeed,
   setRemoteSeed as _setRemoteSeed,
-  generateEntropyValue, upsertFile, deleteKey
+  generateEntropyValue
 } from "../actions";
 import { CreateStoreUserInputs } from "../types";
 import { startPreviewServer } from "../content_server/server";
 import { checkStoreWritePermissions } from "../actions";
 import { getActiveStoreId } from "../utils/config";
-import { generateHighEntropyValue } from "../utils/credentialsUtils";
 
 // Command handlers
 export const handlers = {
@@ -51,7 +51,7 @@ export const handlers = {
   },
   server: async () => {
     await getActiveStoreId();
-    await startPreviewServer();
+    await startContentServer();
   },
   clone: async (storeId: string) => {
     await clone(storeId);
@@ -68,6 +68,7 @@ export const handlers = {
     await setRemote(peer);
   },
   syncRemoteSeed: async () => {
+    console.log("Syncing remote seed");
     await _syncRemoteSeed();
   },
   setRemoteSeed: async (seed: string) => {

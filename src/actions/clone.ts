@@ -1,6 +1,7 @@
 import fs from "fs";
+import path from "path";
 import { pullFilesFromNetwork } from "../utils/download";
-import { DIG_FOLDER_PATH, CONFIG_FILE_PATH } from "../utils/config";
+import { STORE_PATH } from "../utils/config";
 import { waitForPromise } from "../utils";
 import { validateStore } from "../blockchain/datastore";
 
@@ -9,7 +10,7 @@ export const clone = async (storeId: string): Promise<void> => {
 
   try {
     // Pull files from the remote
-    await pullFilesFromNetwork(storeId, DIG_FOLDER_PATH);
+    await pullFilesFromNetwork(storeId, STORE_PATH);
   } catch (error: any) {
     console.error(error.message);
     process.exit(1); // Exit the process with an error code
@@ -24,11 +25,11 @@ export const clone = async (storeId: string): Promise<void> => {
     );
     if (!storeIntegrityCheck) {
       console.error("Store integrity check failed. Reverting Clone");
-      fs.rmdirSync(DIG_FOLDER_PATH, { recursive: true });
+      fs.rmdirSync(path.resolve(STORE_PATH, storeId), { recursive: true });
     }
   } catch (error: any) {
     console.trace(error.message);
     console.error("Store integrity check failed. Reverting Clone");
-    fs.rmdirSync(DIG_FOLDER_PATH, { recursive: true });
+    fs.rmdirSync(path.resolve(STORE_PATH, storeId), { recursive: true });
   }
 };

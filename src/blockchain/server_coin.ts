@@ -39,7 +39,6 @@ export const createServerCoin = async (
       urls
     );
   } catch (error: any) {
-    console.trace(error);
     throw new Error("Failed to create server coin: " + error.message);
   }
 };

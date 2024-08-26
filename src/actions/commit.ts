@@ -8,7 +8,6 @@ import {
   getLatestStoreInfo,
 } from "../blockchain/datastore";
 import {
-  DIG_FOLDER_PATH,
   getManifestFilePath,
   loadDigConfig,
   getActiveStoreId,
@@ -70,7 +69,7 @@ export const commit = async (): Promise<void> => {
       return;
     }
 
-    const totalBytes = calculateFolderSize(DIG_FOLDER_PATH);
+    const totalBytes = calculateFolderSize(path.resolve(STORE_PATH, storeId.toString("hex")));
 
     console.log(
       `Updating store metadata with new root hash: ${newRootHash}, bytes: ${totalBytes}`
@@ -113,11 +112,11 @@ export const commit = async (): Promise<void> => {
 
 const catchUpWithManifest = async (
   onChainRootHash: string,
-  launcherId: string
+  storeId: string
 ) => {
   const peer = await getPeer();
   const manifest = fs
-    .readFileSync(getManifestFilePath(launcherId), "utf-8")
+    .readFileSync(getManifestFilePath(storeId), "utf-8")
     .trim();
   const manifestRootHashes = manifest.split("\n");
 
@@ -140,7 +139,7 @@ const catchUpWithManifest = async (
       console.log(`Committing root hash: ${rootHash}`);
       const updatedStoreInfo = await updateDataStoreMetadata({
         rootHash: Buffer.from(rootHash, "hex"),
-        bytes: calculateFolderSize(DIG_FOLDER_PATH),
+        bytes: calculateFolderSize(path.resolve(STORE_PATH, storeId)),
       });
 
       await waitForConfirmation(peer, updatedStoreInfo.coin.parentCoinInfo);

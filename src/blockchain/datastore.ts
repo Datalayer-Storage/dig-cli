@@ -387,7 +387,7 @@ export const getLocalRootHistory = async (): Promise<
   // Load manifest file
   const manifestFilePath = getManifestFilePath(storeId.toString("hex"));
   if (!fs.existsSync(manifestFilePath)) {
-    console.error("Manifest file not found");
+    console.error("Manifest file not found", manifestFilePath);
     return undefined;
   }
 
@@ -424,7 +424,7 @@ export const validateStore = async (): Promise<boolean> => {
   // Load manifest file
   const manifestFilePath = getManifestFilePath(storeId.toString("hex"));
   if (!fs.existsSync(manifestFilePath)) {
-    console.error("Manifest file not found");
+    console.error("Manifest file not found", manifestFilePath);
     return false;
   }
 

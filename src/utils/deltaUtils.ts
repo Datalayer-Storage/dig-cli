@@ -14,7 +14,7 @@ export const getDeltaFiles = async (
   // Load manifest file
   const manifestFilePath = path.join(directoryPath, storeId, "manifest.dat");
   if (!fs.existsSync(manifestFilePath)) {
-    console.error("Manifest file not found");
+    console.error("Manifest file not found", manifestFilePath);
     return [];
   }
 

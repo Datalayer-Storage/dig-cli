@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.28](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.27...v0.0.28) (2024-08-26)
+
+
+### Features
+
+* remote seed management ([3bb8ad5](https://github.com/Datalayer-Storage/dig-cli/commit/3bb8ad520c6c560a84e80bc596015412da741062))
+
 ### [0.0.27](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.26...v0.0.27) (2024-08-26)
 
 

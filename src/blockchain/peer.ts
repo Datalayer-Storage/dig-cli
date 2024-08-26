@@ -119,9 +119,6 @@ const createErrorHandlingProxy = (peer: Peer): Peer => {
           } catch (error: any) {
             cachedPeer = null;
             clearMemoizedIPs();
-            console.warn(
-              `Error occurred in method ${String(prop)}: ${error.message}. Finding new peer...`
-            );
             const newPeer = await getPeer();
             return (newPeer as any)[prop](...args);
           }
@@ -152,7 +149,7 @@ export const getPeer = async (): Promise<Peer> => {
   }
 
   const bestPeerIndex = await selectBestPeer(peers, peerIPs);
-  const bestPeer = createErrorHandlingProxy(peers[bestPeerIndex]);
+  const bestPeer = peers[bestPeerIndex];
 
   cachedPeer = { peer: bestPeer, timestamp: now };
 

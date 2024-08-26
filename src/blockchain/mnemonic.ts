@@ -37,12 +37,16 @@ function encryptMnemonic(mnemonic: string, key: Buffer, nonce: string): string {
   const cipher = crypto.createCipheriv(ALGORITHM, key, Buffer.from(nonce, "hex"));
   let encrypted = cipher.update(mnemonic, "utf8", "hex");
   encrypted += cipher.final("hex");
-  return encrypted;
+  const tag = cipher.getAuthTag().toString('hex');
+  return encrypted + tag; // Add the authentication tag to the end of the encrypted text
 }
 
 function decryptMnemonic(data: string, key: Buffer, nonce: string): string {
+  const encryptedData = data.slice(0, -32); // Get the encrypted text
+  const tag = Buffer.from(data.slice(-32), 'hex'); // Get the last 32 chars (16 bytes) as the auth tag
   const decipher = crypto.createDecipheriv(ALGORITHM, key, Buffer.from(nonce, "hex"));
-  let decrypted = decipher.update(data, "hex", "utf8");
+  decipher.setAuthTag(tag);
+  let decrypted = decipher.update(encryptedData, "hex", "utf8");
   decrypted += decipher.final("utf8");
   return decrypted;
 }
@@ -231,6 +235,6 @@ export const importChiaMnemonic = async (): Promise<string> => {
   }
 
   const mnemonic = privateKeyInfo?.private_key.seed;
-
+  await writeMnemonicToKeyring(mnemonic);
   return mnemonic;
 };

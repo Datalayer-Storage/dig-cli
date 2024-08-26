@@ -106,46 +106,24 @@ const getPeerIPs = async (): Promise<string[]> => {
 };
 
 // Peer Proxy with Timeout Handling
-const createTimeoutProxy = (peer: Peer, timeout: number): Peer => {
+const createErrorHandlingProxy = (peer: Peer): Peer => {
   return new Proxy(peer, {
     get(target, prop) {
       const originalMethod = (target as any)[prop];
 
       if (typeof originalMethod === "function") {
         return async (...args: any[]) => {
-          const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => {
-              console.warn(
-                `Method ${String(
-                  prop
-                )} timed out after ${timeout}ms, finding new peer...`
-              );
-              reject(new Error("Method timed out"));
-            }, timeout)
-          );
-
           try {
-            const result = await Promise.race([
-              originalMethod.apply(target, args),
-              timeoutPromise,
-            ]);
-            retryCount = 0; // Reset retry count on success
+            const result = await originalMethod.apply(target, args);
             return result;
           } catch (error: any) {
-            if (
-              error.message.includes("Method timed out") &&
-              retryCount < MAX_RETRIES
-            ) {
-              cachedPeer = null;
-              clearMemoizedIPs();
-              retryCount++;
-              console.log(
-                `Retrying... (${retryCount}/${MAX_RETRIES}) after timeout`
-              );
-              const newPeer = await getPeer();
-              return (newPeer as any)[prop](...args);
-            }
-            throw error;
+            cachedPeer = null;
+            clearMemoizedIPs();
+            console.warn(
+              `Error occurred in method ${String(prop)}: ${error.message}. Finding new peer...`
+            );
+            const newPeer = await getPeer();
+            return (newPeer as any)[prop](...args);
           }
         };
       }
@@ -154,6 +132,7 @@ const createTimeoutProxy = (peer: Peer, timeout: number): Peer => {
     },
   });
 };
+
 
 // Main Functions
 export const getPeer = async (): Promise<Peer> => {
@@ -173,7 +152,7 @@ export const getPeer = async (): Promise<Peer> => {
   }
 
   const bestPeerIndex = await selectBestPeer(peers, peerIPs);
-  const bestPeer = createTimeoutProxy(peers[bestPeerIndex], METHOD_TIMEOUT);
+  const bestPeer = createErrorHandlingProxy(peers[bestPeerIndex]);
 
   cachedPeer = { peer: bestPeer, timestamp: now };
 

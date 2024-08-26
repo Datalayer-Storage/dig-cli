@@ -85,7 +85,7 @@ export const getCoinState = (
     description: string;
   };
 } => {
-  const stateFile = path.join(DIG_FOLDER_PATH, `${storeId}.json`);
+  const stateFile = path.join(STORE_PATH, `${storeId}.json`);
   if (!fs.existsSync(stateFile)) {
     return {
       metadata: { rootHash: "", bytes: "", label: "", description: "" },
@@ -103,11 +103,11 @@ export const getCoinState = (
  * @returns {string[]} An array of valid folder names.
  */
 export const getStoresList = (): string[] => {
-  const folders = fs.readdirSync(DIG_FOLDER_PATH);
+  const folders = fs.readdirSync(STORE_PATH);
   return folders.filter(
     (folder) =>
       /^[a-f0-9]{64}$/.test(folder) &&
-      fs.lstatSync(path.join(DIG_FOLDER_PATH, folder)).isDirectory()
+      fs.lstatSync(path.join(STORE_PATH, folder)).isDirectory()
   );
 };
 

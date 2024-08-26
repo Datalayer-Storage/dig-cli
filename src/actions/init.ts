@@ -21,9 +21,10 @@ import { waitForPromise } from "../utils";
 export const init = async (
   inputs: CreateStoreUserInputs = {}
 ): Promise<void> => {
-  if (!fs.existsSync(DIG_FOLDER_PATH)) {
-    fs.mkdirSync(DIG_FOLDER_PATH);
+  if (!fs.existsSync(STORE_PATH)) {
+    fs.mkdirSync(STORE_PATH, { recursive: true });
   }
+
 
   if (!fs.existsSync(CONFIG_FILE_PATH)) {
     createInitialConfig();

@@ -1,7 +1,7 @@
 import { app, PORT } from "./app";
 import { precacheStoreInfo } from "./services/precacheService";
 
-const startPreviewServer = (): Promise<void> => {
+const startContentServer = (): Promise<void> => {
   return new Promise((resolve, reject) => {
     try {
       const server = app.listen(PORT, async () => {
@@ -17,4 +17,4 @@ const startPreviewServer = (): Promise<void> => {
   });
 };
 
-export { startPreviewServer };
+export { startContentServer };

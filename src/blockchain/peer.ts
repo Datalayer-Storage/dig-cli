@@ -7,7 +7,6 @@ import { resolve4 } from "dns/promises";
 import net from "net";
 import { memoize } from "lodash";
 
-// Constants
 const FULLNODE_PORT = 8444;
 const LOCALHOST = "127.0.0.1";
 const DNS_HOSTS = [
@@ -18,13 +17,9 @@ const DNS_HOSTS = [
 ];
 const CONNECTION_TIMEOUT = 2000;
 const CACHE_DURATION = 30000; // Cache duration in milliseconds (e.g., 30 seconds)
-const METHOD_TIMEOUT = 60000; // Timeout duration for peer methods (1 minute)
-const MAX_RETRIES = 3; // Maximum number of retries before giving up
 
 let cachedPeer: { peer: Peer; timestamp: number } | null = null;
-let retryCount = 0;
 
-// Utility Functions
 const isPortReachable = (
   host: string,
   port: number,
@@ -45,8 +40,27 @@ const fetchNewPeerIPs = async (): Promise<string[]> => {
   for (const DNS_HOST of DNS_HOSTS) {
     try {
       const ips = await resolve4(DNS_HOST);
-      if (ips.length > 0) {
-        const reachableIps = await filterReachableIps(ips);
+      if (ips && ips.length > 0) {
+        const shuffledIps = ips.sort(() => 0.5 - Math.random());
+        const reachableIps: string[] = [];
+
+        if (await isPortReachable(LOCALHOST, FULLNODE_PORT)) {
+          console.log(
+            `Connecting to Peer: ${LOCALHOST} (reachable on port ${FULLNODE_PORT})`
+          );
+          reachableIps.push(LOCALHOST);
+        }
+
+        for (const ip of shuffledIps) {
+          if (await isPortReachable(ip, FULLNODE_PORT)) {
+            console.log(
+              `Connecting to Peer: ${ip} (reachable on port ${FULLNODE_PORT})`
+            );
+            reachableIps.push(ip);
+          }
+          if (reachableIps.length === 5) break; // Stop after finding 5 reachable IPs
+        }
+
         if (reachableIps.length > 0) {
           return reachableIps;
         }
@@ -55,58 +69,42 @@ const fetchNewPeerIPs = async (): Promise<string[]> => {
       console.error(`Failed to resolve IPs from ${DNS_HOST}: ${error.message}`);
     }
   }
+
   throw new Error("No reachable IPs found in any DNS records.");
 };
 
-const filterReachableIps = async (ips: string[]): Promise<string[]> => {
-  const shuffledIps = ips.sort(() => 0.5 - Math.random());
-  const reachableIps: string[] = [];
-
-  if (await isPortReachable(LOCALHOST, FULLNODE_PORT)) {
-    console.log(
-      `Connecting to Peer: ${LOCALHOST} (reachable on port ${FULLNODE_PORT})`
-    );
-    reachableIps.push(LOCALHOST);
-  }
-
-  for (const ip of shuffledIps) {
-    if (await isPortReachable(ip, FULLNODE_PORT)) {
-      console.log(
-        `Connecting to Peer: ${ip} (reachable on port ${FULLNODE_PORT})`
-      );
-      reachableIps.push(ip);
-    }
-    if (reachableIps.length === 5) break; // Stop after finding 5 reachable IPs
-  }
-
-  return reachableIps;
-};
-
-// Memoized Fetch with Clear Capability
-let memoizedFetchNewPeerIPs = memoize(fetchNewPeerIPs);
-
-const clearMemoizedIPs = () => {
-  if (memoizedFetchNewPeerIPs.cache.clear) {
-    memoizedFetchNewPeerIPs.cache.clear();
-  }
-  memoizedFetchNewPeerIPs = memoize(fetchNewPeerIPs); // Recreate the memoized function
-};
+const memoizedFetchNewPeerIPs = memoize(fetchNewPeerIPs);
 
 const getPeerIPs = async (): Promise<string[]> => {
   const ips = await memoizedFetchNewPeerIPs();
-  const reachableIps = await filterReachableIps(ips);
+
+  // Re-check all the memoized IPs to ensure they're still reachable
+  const reachableIps = await Promise.all(
+    ips.map(async (ip) => {
+      if (ip && (await isPortReachable(ip, FULLNODE_PORT))) {
+        return ip;
+      }
+      return null;
+    })
+  ).then((results) => results.filter((ip) => ip !== null) as string[]);
 
   if (reachableIps.length > 0) {
     return reachableIps;
   }
 
   console.log(`Memoized IPs are not reachable. Fetching new IPs...`);
-  clearMemoizedIPs();
+  if (memoizedFetchNewPeerIPs?.cache?.clear) {
+    memoizedFetchNewPeerIPs.cache.clear();
+  }
+
   return memoizedFetchNewPeerIPs();
 };
 
-// Peer Proxy with Timeout Handling
-const createErrorHandlingProxy = (peer: Peer): Peer => {
+const createPeerProxy = (
+  peer: Peer,
+  certFile: string,
+  keyFile: string
+): Peer => {
   return new Proxy(peer, {
     get(target, prop) {
       const originalMethod = (target as any)[prop];
@@ -114,50 +112,34 @@ const createErrorHandlingProxy = (peer: Peer): Peer => {
       if (typeof originalMethod === "function") {
         return async (...args: any[]) => {
           try {
-            const result = await originalMethod.apply(target, args);
-            return result;
+            return await originalMethod.apply(target, args);
           } catch (error: any) {
-            if (error.message.includes("AlreadyClosed)")) {
-              cachedPeer = null;
-              clearMemoizedIPs();
-              const newPeer = await getPeer();
-              return (newPeer as any)[prop](...args);
+            if (error.message.includes("AlreadyClosed")) {
+              cachedPeer = null; // Invalidate the cached peer
+
+              const newPeer = await getPeer(); // Get a new peer instance
+              return (newPeer as any)[prop](...args); // Retry the operation with the new peer
             }
+
+            throw error; // Allow other errors to pass through
           }
         };
       }
 
+      // If not a function, return as is (e.g., properties)
       return originalMethod;
     },
   });
 };
 
-// Main Functions
 export const getPeer = async (): Promise<Peer> => {
   const now = Date.now();
 
+  // Check if the cached peer is still valid
   if (cachedPeer && now - cachedPeer.timestamp < CACHE_DURATION) {
     return cachedPeer.peer;
   }
 
-  const { certFile, keyFile } = await setupTlsFiles();
-
-  const peerIPs = await getPeerIPs();
-  const peers = await createPeers(peerIPs, certFile, keyFile);
-
-  if (peers.length === 0) {
-    throw new Error("No peers available, please try again.");
-  }
-
-  const bestPeerIndex = await selectBestPeer(peers, peerIPs);
-  const bestPeer = createErrorHandlingProxy(peers[bestPeerIndex]);
-
-  cachedPeer = { peer: bestPeer, timestamp: now };
-
-  return bestPeer;
-};
-
-const setupTlsFiles = async () => {
   const sslFolder = path.resolve(os.homedir(), ".dig", "ssl");
   const certFile = path.join(sslFolder, "public_dig.crt");
   const keyFile = path.join(sslFolder, "public_dig.key");
@@ -167,15 +149,9 @@ const setupTlsFiles = async () => {
   }
 
   new Tls(certFile, keyFile);
-  return { certFile, keyFile };
-};
 
-const createPeers = async (
-  peerIPs: string[],
-  certFile: string,
-  keyFile: string
-) => {
-  return Promise.all(
+  const peerIPs = await getPeerIPs();
+  const peers = await Promise.all(
     peerIPs.map(async (ip) => {
       if (ip) {
         try {
@@ -185,7 +161,7 @@ const createPeers = async (
             certFile,
             keyFile
           );
-          return peer;
+          return createPeerProxy(peer, certFile, keyFile);
         } catch (error: any) {
           console.error(`Failed to create peer for IP ${ip}: ${error.message}`);
           return null;
@@ -194,12 +170,13 @@ const createPeers = async (
       return null;
     })
   ).then((results) => results.filter((peer) => peer !== null) as Peer[]);
-};
 
-const selectBestPeer = async (
-  peers: Peer[],
-  peerIPs: string[]
-): Promise<number> => {
+  if (peers.length === 0) {
+    throw new Error("No peers available found, please try again.");
+  }
+
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+
   const peakHeights = await Promise.all(
     peers.map((peer) =>
       peer
@@ -220,20 +197,41 @@ const selectBestPeer = async (
     throw new Error("No valid peak heights obtained from any peer.");
   }
 
-  const highestPeak = Math.max(...validHeights);
-  return validHeights.findIndex((height, idx) =>
+  let highestPeak = Math.max(...validHeights);
+  let bestPeerIndex = validHeights.findIndex((height, idx) =>
     peerIPs[idx] === LOCALHOST && height === highestPeak
       ? true
       : height === highestPeak
   );
+
+  const bestPeerIP = peerIPs[bestPeerIndex];
+  if (process.env.DIG_DEBUG === "1") {
+    console.log(`Selected Peer IP: ${bestPeerIP}`);
+  }
+
+  const bestPeer = peers[bestPeerIndex];
+
+  // Cache the selected peer
+  cachedPeer = { peer: bestPeer, timestamp: now };
+
+  return bestPeer;
 };
 
 export const getServerCoinPeer = async (): Promise<ServerCoinPeer> => {
-  const { certFile, keyFile } = await setupTlsFiles();
+  let sslFolder = path.resolve(os.homedir(), ".dig", "ssl");
+  const certFile = path.join(sslFolder, "public_dig.crt");
+  const keyFile = path.join(sslFolder, "public_dig.key");
+
+
+  if (!fs.existsSync(sslFolder)) {
+    fs.mkdirSync(sslFolder, { recursive: true });
+  }
 
   try {
     const tls = new Tls(certFile, keyFile);
+    console.log('%%%');
     const hosts = await getPeerIPs();
+    console.log('***');
     const peer = ServerCoinPeer.connect(
       `${hosts[0]}:${FULLNODE_PORT}`,
       "mainnet",
@@ -241,8 +239,8 @@ export const getServerCoinPeer = async (): Promise<ServerCoinPeer> => {
     );
     return peer;
   } catch (error: any) {
-    console.error(`Failed to get valid peer for ServerCoin: ${error.message}`);
-    console.log("Trying again...");
+    console.error(`Failed get valid peer for ServerCoin: ${error.message}`);
+    console.log("trying again...");
     return getServerCoinPeer();
   }
 };

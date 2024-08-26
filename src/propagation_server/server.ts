@@ -1,6 +1,6 @@
 import { server, PORT } from "./app";
 
-const startPreviewServer = (): Promise<void> => {
+const startPropagationServer = (): Promise<void> => {
   return new Promise((resolve, reject) => {
     try {
       server.listen(PORT, async () => {
@@ -14,4 +14,4 @@ const startPreviewServer = (): Promise<void> => {
   });
 };
 
-export { startPreviewServer };
+export { startPropagationServer };

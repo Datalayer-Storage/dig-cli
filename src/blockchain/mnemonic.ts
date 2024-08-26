@@ -7,7 +7,7 @@ import { getChiaRoot } from "chia-root-resolver";
 import { getChiaConfig } from "chia-config-loader";
 import { encryptData, decryptData, EncryptedData } from "../utils/encryption";
 
-const KEYRING_FILE = "keys/keyring.json";
+const KEYRING_FILE = "keyring.json";
 
 export const readMnemonicFromKeyring = async (): Promise<string | null> => {
   const nconfManager = new NconfManager(KEYRING_FILE);

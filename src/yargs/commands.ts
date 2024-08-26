@@ -1,6 +1,7 @@
 import yargs, { Argv } from "yargs";
 import { handlers } from "./handlers";
 import { CreateStoreUserInputs } from "../types";
+import {isArrayBufferView} from "node:util/types";
 
 export function initCommand(yargs: Argv<{}>) {
   return yargs.command<CreateStoreUserInputs>(
@@ -92,9 +93,30 @@ export function storeCommand(yargs: Argv<{}>) {
     (yargs: Argv<{ action: string }>) => {
       return yargs
         .positional("action", {
-          describe: "Action to perform on keys",
+          describe: "The store action to perform",
           type: "string",
-          choices: ["validate", "update", "remove"],
+          choices: ["validate", "upsert_file", "upsert_data", "remove", "get_root", "get_proof", "verify_proof",
+            "list", "get_key", "delete_key"],
+        })
+        .option ("key", {
+          type: "string",
+          describe: "The store key on which to operate"
+        })
+        .option ("data", {
+          type: "string",
+          describe: "The data to upsert"
+        })
+        .option ("path", {
+          type: "string",
+          describe: "The path to the file to upsert"
+        })
+        .option ("proof", {
+          type: "string",
+          describe: "The proof to verify"
+        })
+        .option ("sha256", {
+          type: "string",
+          describe: "The sha256 hash of the data corresponding to a store key"
         })
         .option("writer", {
           type: "string",
@@ -108,10 +130,39 @@ export function storeCommand(yargs: Argv<{}>) {
           type: "string",
           describe: "Specify an admin for the store",
         })
-        .strict(); // Ensures that only the defined options are accepted
+        .check((argv) => {
+          if (argv.action === "get_proof") {
+            if (!argv.key || !argv.sha256) {
+              throw new Error(`The --key and --sha256 options are required for the '${argv.action}' action.`);
+            }
+          } else if (argv.action === "verify_proof") {
+            if (!argv.proof || !argv.sha256) {
+              throw new Error(`The --proof and --sha256 options are required for the '${argv.action}' action.`);
+            }
+          } else if (argv.action === "get_key") {
+            if (!argv.key) {
+              throw new Error(`The --key option is required for the '${argv.action}' action.`);
+            }
+          } else if (argv.action === "upsert_data") {
+            if (!argv.key || !argv.data) {
+              throw new Error(`The --key and --data options are required for the '${argv.action}' action.`);
+            }
+          } else if (argv.action === "upsert_file") {
+            if (!argv.key || !argv.path) {
+              throw new Error(`The --key and --path options are required for the '${argv.action}' action.`);
+            }
+          }
+          else if (argv.action === "delete_key") {
+            if (!argv.key) {
+              throw new Error(`The --key option is required for the '${argv.action}' action.`);
+            }
+          }
+          return true;
+        })
+        .strict();
     },
-    async (argv: { action: string }) => {
-      await handlers.manageStore(argv.action);
+    async (argv) => {
+      await handlers.manageStore(argv);
     }
   );
 }

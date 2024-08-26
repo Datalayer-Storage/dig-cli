@@ -44,3 +44,8 @@ export interface Credentials {
   username: string;
   password: string;
 }
+
+export interface GetProof {
+  key: string,
+  sha256: string,
+}

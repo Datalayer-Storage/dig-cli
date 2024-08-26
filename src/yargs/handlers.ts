@@ -13,12 +13,20 @@ import {
   init,
   validate,
   login,
+  logout,
+  getProof,
+  verifyProof,
+  listKeys,
+  getRoot,
+  getKey,
+  upsertData,
+  upsertFile,
+  deleteKey,
   syncRemoteSeed as _syncRemoteSeed,
   setRemoteSeed as _setRemoteSeed,
   generateEntropyValue
 } from "../actions";
 import { CreateStoreUserInputs } from "../types";
-import { logout } from "../actions/logout";
 import { startContentServer } from "../content_server/server";
 import { checkStoreWritePermissions } from "../actions";
 import { getActiveStoreId } from "../utils/config";
@@ -73,19 +81,58 @@ export const handlers = {
   generateCreds: async () => {
     await generateEntropyValue();
   },
-  manageStore: async (action: string) => {
-    switch (action) {
-      case "validate":
-        await validate();
-        break;
-      case "update":
-        //  await upsertStore();
-        break;
-      case "remove":
-        // await removeStore();
-        break;
-      default:
-        console.error("Unknown store action");
+  manageStore: async (argv: {action: string} & any) => {
+    try {
+      switch (argv.action) {
+        case "validate":
+          await validate();
+          break;
+        case "upsert_data": {
+          const {key, data} = argv;
+          await upsertData(key, data);
+          break;
+        }
+        case "upsert_file": {
+          const {key, path} = argv;
+          await upsertFile(key, path);
+          break;
+        }
+        case "remove":
+          // await removeStore();
+          break;
+        case "get_proof": {
+          const {key, sha256} = argv;
+          await getProof(key, sha256);
+          break;
+        }
+        case "verify_proof": {
+          const {proof, sha256} = argv;
+          await verifyProof(proof, sha256);
+          break;
+        }
+        case "list": {
+          await listKeys();
+          break;
+        }
+        case "getRoot": {
+          await getRoot();
+          break;
+        }
+        case "get_key": {
+          const {key} = argv;
+          await getKey(key);
+          break;
+        }
+        case "delete_key": {
+          const {key} = argv;
+          await deleteKey(key);
+          break;
+        }
+        default:
+          console.error(`Unknown action ${argv.action}`);
+      }
+    } catch {
+      console.error('Invalid command structure')
     }
   },
   manageKeys: async (action: string, providedMnemonic?: string) => {

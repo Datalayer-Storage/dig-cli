@@ -160,7 +160,7 @@ const task = new Task("sync-stores", async () => {
 
 const job = new SimpleIntervalJob(
   {
-    seconds: 60,
+    seconds: 300,
     runImmediately: true,
   },
   task,

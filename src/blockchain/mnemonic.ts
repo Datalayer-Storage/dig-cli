@@ -1,96 +1,144 @@
 import * as fs from "fs-extra";
 import * as path from "path";
-import * as keytar from "keytar";
+import * as crypto from "crypto";
 import * as bip39 from "bip39";
+import nconf from "nconf";
 import WalletRpc from "chia-wallet";
+import os from "os";
 // @ts-ignore
 import { getChiaRoot } from "chia-root-resolver";
 import { getChiaConfig } from "chia-config-loader";
 import { askForMnemonicAction, askForMnemonicInput } from "../prompts";
 
-const SERVICE_NAME = "dig-datalayer";
-const ACCOUNT_NAME = "mnemonic-seed";
-const MNEMONIC_FILE_PATH = path.join(process.env.HOME || "", ".mnemonic-seed");
+const DIG_FOLDER_PATH = process.env.DIG_FOLDER_PATH || path.join(os.homedir(), ".dig");
+const KEYS_DIR_PATH = path.join(DIG_FOLDER_PATH, "keys");
+const KEYRING_FILE_PATH = path.join(KEYS_DIR_PATH, "keyring.json");
+const ALGORITHM = "aes-256-gcm";
 
-// Determine whether to use file-based storage
-const useFileStorage = process.env.REMOTE_NODE === "1";
+// Ensure the keys directory exists
+async function ensureKeysDirectory() {
+  if (!(await fs.pathExists(KEYS_DIR_PATH))) {
+    await fs.mkdirp(KEYS_DIR_PATH);
+    console.log("Keys directory created:", KEYS_DIR_PATH);
+  }
+}
 
-async function readMnemonicFromFile(): Promise<string | null> {
+interface KeyringData {
+  data: string;
+  nonce: string;
+  salt: string;
+}
+
+function generateKey(salt: string): Buffer {
+  return crypto.pbkdf2Sync("mnemonic-seed", salt, 100000, 32, "sha512");
+}
+
+function encryptMnemonic(mnemonic: string, key: Buffer, nonce: string): string {
+  const cipher = crypto.createCipheriv(ALGORITHM, key, Buffer.from(nonce, "hex"));
+  let encrypted = cipher.update(mnemonic, "utf8", "hex");
+  encrypted += cipher.final("hex");
+  return encrypted;
+}
+
+function decryptMnemonic(data: string, key: Buffer, nonce: string): string {
+  const decipher = crypto.createDecipheriv(ALGORITHM, key, Buffer.from(nonce, "hex"));
+  let decrypted = decipher.update(data, "hex", "utf8");
+  decrypted += decipher.final("utf8");
+  return decrypted;
+}
+
+function generateBinaryMnemonicData(mnemonic: string): KeyringData {
+  const nonce = crypto.randomBytes(12).toString("hex");
+  const salt = crypto.randomBytes(16).toString("hex");
+  const key = generateKey(salt);
+
+  const data = encryptMnemonic(mnemonic, key, nonce);
+
+  return {
+    data,
+    nonce,
+    salt,
+  };
+}
+
+async function readMnemonicFromKeyring(): Promise<string | null> {
+  await ensureKeysDirectory(); // Ensure the keys directory exists
   try {
-    if (await fs.pathExists(MNEMONIC_FILE_PATH)) {
-      const mnemonic = await fs.readFile(MNEMONIC_FILE_PATH, "utf-8");
-      console.log("Retrieved mnemonic seed phrase from file storage.");
-      return mnemonic;
+    if (await fs.pathExists(KEYRING_FILE_PATH)) {
+      nconf.file(KEYRING_FILE_PATH);
+      const keyringData: KeyringData = nconf.get("keyring");
+
+      if (keyringData) {
+        const { data, nonce, salt } = keyringData;
+        const key = generateKey(salt);
+        const mnemonic = decryptMnemonic(data, key, nonce);
+        console.log("Retrieved and decrypted mnemonic seed phrase from keyring.");
+        return mnemonic;
+      }
     }
   } catch (error) {
-    console.error("An error occurred while reading the mnemonic from file:", error);
+    console.error("An error occurred while reading the mnemonic from keyring:", error);
   }
   return null;
 }
 
-async function writeMnemonicToFile(mnemonic: string): Promise<void> {
+async function writeMnemonicToKeyring(mnemonic: string): Promise<void> {
+  await ensureKeysDirectory(); // Ensure the keys directory exists
   try {
-    await fs.outputFile(MNEMONIC_FILE_PATH, mnemonic);
-    console.log("Mnemonic seed phrase securely stored in file.");
+    nconf.file(KEYRING_FILE_PATH);
+    const keyringData = generateBinaryMnemonicData(mnemonic);
+
+    nconf.set("keyring", keyringData);
+    await new Promise((resolve, reject) =>
+      nconf.save((err: any) => (err ? reject(err) : resolve(undefined)))
+    );
+
+    console.log("Mnemonic seed phrase securely stored in keyring.");
   } catch (error) {
-    console.error("An error occurred while writing the mnemonic to file:", error);
+    console.error("An error occurred while writing the mnemonic to keyring:", error);
   }
 }
 
-async function deleteMnemonicFile(): Promise<boolean> {
+async function deleteMnemonicFromKeyring(): Promise<boolean> {
+  await ensureKeysDirectory(); // Ensure the keys directory exists
   try {
-    if (await fs.pathExists(MNEMONIC_FILE_PATH)) {
-      await fs.remove(MNEMONIC_FILE_PATH);
-      console.log("Mnemonic seed phrase successfully deleted from file.");
+    if (await fs.pathExists(KEYRING_FILE_PATH)) {
+      nconf.file(KEYRING_FILE_PATH);
+      nconf.clear("keyring");
+      await new Promise((resolve, reject) =>
+        nconf.save((err: any) => (err ? reject(err) : resolve(undefined)))
+      );
+      console.log("Mnemonic seed phrase successfully deleted from keyring.");
       return true;
     }
-    console.log("No mnemonic seed phrase found to delete in file.");
+    console.log("No mnemonic seed phrase found to delete in keyring.");
   } catch (error) {
-    console.error("An error occurred while deleting the mnemonic file:", error);
+    console.error("An error occurred while deleting the mnemonic from keyring:", error);
   }
   return false;
 }
 
 /**
- * Retrieves the mnemonic seed phrase from the keychain or file storage.
+ * Retrieves the mnemonic seed phrase from the keyring file.
  */
 export async function getMnemonic(): Promise<string | null> {
-  if (useFileStorage) {
-    return await readMnemonicFromFile();
-  } else {
-    try {
-      const mnemonic = keytar.getPassword(SERVICE_NAME, ACCOUNT_NAME);
-      console.log("Retrieved mnemonic seed phrase from the keychain.");
-      return mnemonic;
-    } catch (error) {
-      console.error(
-        "An error occurred while retrieving the mnemonic seed phrase:",
-        error
-      );
-      return null;
-    }
-  }
+  return await readMnemonicFromKeyring();
 }
 
 /**
- * Generates a new 24-word mnemonic seed phrase, stores it in the keychain or file, and returns it.
+ * Generates a new 24-word mnemonic seed phrase, stores it in the keyring file, and returns it.
  */
 export async function createMnemonic(): Promise<string> {
   const mnemonic = bip39.generateMnemonic(256); // 256 bits generates a 24-word mnemonic
   console.log("Generated new 24-word mnemonic seed phrase:", mnemonic);
 
-  if (useFileStorage) {
-    await writeMnemonicToFile(mnemonic);
-  } else {
-    await keytar.setPassword(SERVICE_NAME, ACCOUNT_NAME, mnemonic);
-    console.log("Mnemonic seed phrase securely stored in keychain.");
-  }
+  await writeMnemonicToKeyring(mnemonic);
 
   return mnemonic;
 }
 
 /**
- * Imports a mnemonic seed phrase, validates it, and stores it in the keychain or file.
+ * Imports a mnemonic seed phrase, validates it, and stores it in the keyring file.
  */
 export async function importMnemonic(seed: string | undefined): Promise<string> {
   let mnemonic: string;
@@ -106,18 +154,14 @@ export async function importMnemonic(seed: string | undefined): Promise<string> 
     throw new Error("Provided mnemonic is invalid.");
   }
 
-  if (useFileStorage) {
-    await writeMnemonicToFile(mnemonic);
-  } else {
-    await keytar.setPassword(SERVICE_NAME, ACCOUNT_NAME, mnemonic);
-  }
+  await writeMnemonicToKeyring(mnemonic);
   
   console.log("Mnemonic seed phrase securely stored.");
   return mnemonic;
 }
 
 /**
- * Retrieves or generates a mnemonic seed phrase, storing it in the keychain or file.
+ * Retrieves or generates a mnemonic seed phrase, storing it in the keyring file.
  */
 export async function getOrCreateMnemonic(): Promise<string> {
   let mnemonic: string | null | undefined = process.env.CHIA_MNEMONIC;
@@ -144,40 +188,16 @@ export async function getOrCreateMnemonic(): Promise<string> {
     if (!mnemonic) {
       throw new Error("Mnemonic seed phrase is required.");
     }
-
-    if (!useFileStorage) {
-      await keytar.setPassword(SERVICE_NAME, ACCOUNT_NAME, mnemonic);
-    }
   }
 
   return mnemonic;
 }
 
 /**
- * Deletes the mnemonic seed phrase from the keychain or file.
+ * Deletes the mnemonic seed phrase from the keyring file.
  */
 export async function deleteMnemonic(): Promise<boolean> {
-  if (useFileStorage) {
-    return await deleteMnemonicFile();
-  } else {
-    try {
-      const result = await keytar.deletePassword(SERVICE_NAME, ACCOUNT_NAME);
-      if (result) {
-        console.log(
-          "Mnemonic seed phrase successfully deleted from the keychain."
-        );
-      } else {
-        console.log("No mnemonic seed phrase found to delete.");
-      }
-      return result;
-    } catch (error) {
-      console.error(
-        "An error occurred while deleting the mnemonic seed phrase:",
-        error
-      );
-      return false;
-    }
-  }
+  return await deleteMnemonicFromKeyring();
 }
 
 // The importChiaMnemonic function remains unchanged

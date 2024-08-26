@@ -39,7 +39,7 @@ export const headStore = async (req: Request, res: Response): Promise<void> => {
       throw new HttpError(400, "Missing path parameters");
     }
 
-    const manifestPath = path.join(digFolderPath, storeId, "manifest.dat");
+    const manifestPath = path.join(digFolderPath, "stores", storeId, "manifest.dat");
 
     if (!fs.existsSync(manifestPath)) {
       res
@@ -103,7 +103,7 @@ export const getStore = async (req: Request, res: Response) => {
     }
 
     // Construct the full file path
-    const fullPath = path.join(digFolderPath, storeId, relativeFilePath);
+    const fullPath = path.join(digFolderPath, "stores", storeId, relativeFilePath);
 
     // Check if the file exists
     if (!fs.existsSync(fullPath)) {
@@ -210,7 +210,7 @@ export const putStore = async (req: Request, res: Response): Promise<void> => {
     console.log("User has write access to the store.");
 
     // Construct the full path where the file should be stored
-    const fullPath = path.join(digFolderPath, fileKey);
+    const fullPath = path.join(digFolderPath, "stores", fileKey);
     console.log("Saving file to:", fullPath);
 
     // Ensure the directory exists

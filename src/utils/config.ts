@@ -13,11 +13,16 @@ export const MIN_HEIGHT_HEADER_HASH =
 
 export const DIG_FOLDER_PATH =
   process.env.DIG_FOLDER_PATH || path.join(process.cwd(), ".dig");
+
+export const STORE_PATH = path.join(DIG_FOLDER_PATH, "stores");
+
 export const CONFIG_FILE_PATH = path.join(DIG_FOLDER_PATH, "dig.config.json");
+
 export const getManifestFilePath = (storeId: string): string =>
-  path.join(DIG_FOLDER_PATH, storeId, "manifest.dat");
+  path.join(STORE_PATH, storeId, "manifest.dat");
+
 export const getHeightFilePath = (storeId: string): string =>
-  path.join(DIG_FOLDER_PATH, storeId, "height.dat");
+  path.join(STORE_PATH, storeId, "height.dat");
 
 export const createInitialConfig = (): void => {
   const initialConfig = { deploy_dir: "./dist", remote: "" };

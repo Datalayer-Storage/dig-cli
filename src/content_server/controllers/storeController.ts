@@ -30,7 +30,7 @@ export const getKeysIndex = async (req: Request, res: Response) => {
   
       const options: DataIntegrityTreeOptions = {
         storageMode: "local",
-        storeDir: digFolderPath,
+        storeDir: `${digFolderPath}/stores`,
         disableInitialize: true,
       };
   
@@ -91,7 +91,7 @@ export const getKeysIndex = async (req: Request, res: Response) => {
   
       const options: DataIntegrityTreeOptions = {
         storageMode: "local",
-        storeDir: digFolderPath,
+        storeDir: `${digFolderPath}/stores`,
         disableInitialize: true,
       };
   

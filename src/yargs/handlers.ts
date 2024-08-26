@@ -19,9 +19,10 @@ import {
   listKeys,
   getRoot,
   getKey,
+  upsertData,
   syncRemoteSeed as _syncRemoteSeed,
   setRemoteSeed as _setRemoteSeed,
-  generateEntropyValue
+  generateEntropyValue, upsertFile
 } from "../actions";
 import { CreateStoreUserInputs } from "../types";
 import { startPreviewServer } from "../content_server/server";
@@ -84,9 +85,16 @@ export const handlers = {
         case "validate":
           await validate();
           break;
-        case "update":
-          //  await upsertStore();
+        case "upsert_data": {
+          const {key, data} = argv;
+          await upsertData(key, data);
           break;
+        }
+        case "upsert_file": {
+          const {key, path} = argv;
+          await upsertFile(key, path);
+          break;
+        }
         case "remove":
           // await removeStore();
           break;

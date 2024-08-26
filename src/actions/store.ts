@@ -1,12 +1,10 @@
 import {getActiveStoreId, STORE_PATH} from "../utils/config";
 import {DataIntegrityTree, DataIntegrityTreeOptions} from "../DataIntegrityTree";
 import {Buffer} from "buffer";
+import {Readable} from "stream";
+import fs from "fs";
 
 /*
-export const upsert = async ({ writerPublicAddress, adminPublicAddress, oracleFee  }): Promise<void> => {
-
-}
-
 export const remove = async ({ writerPublicAddress, adminPublicAddress, oracleFee  }): Promise<void> => {
 
 }
@@ -18,6 +16,53 @@ export const transfer = async ({ receivePublicAddress }): Promise<void> => {
 export const melt = async (): Promise<void> => {
 
 }*/
+
+export const upsertData = async (key: string, data: string): Promise<void> => {
+  try {
+    const storeIdResult = getActiveStoreId();
+    const storeId = storeIdResult?.toString();
+    if (!storeId){
+      throw new Error('Failed to find datastore');
+    }
+
+    const dataStream = new Readable();
+    dataStream.push(data);
+    dataStream.push(null);
+
+    const options: DataIntegrityTreeOptions = {
+      storageMode: "local",
+      storeDir: STORE_PATH,
+    };
+    const datalayer = new DataIntegrityTree(storeId, options);
+    await datalayer.upsertKey(dataStream, key);
+
+    console.log(`Upserted data to datastore ${storeId} with key ${key}`);
+  } catch (error: any) {
+    console.error('Cannot upsert data:', error.message);
+  }
+}
+
+export const upsertFile = async (key: string, filePath: string): Promise<void> => {
+  try {
+    const storeIdResult = getActiveStoreId();
+    const storeId = storeIdResult?.toString();
+    if (!storeId){
+      throw new Error('Failed to find datastore');
+    }
+
+    const fileStream = fs.createReadStream(filePath);
+
+    const options: DataIntegrityTreeOptions = {
+      storageMode: "local",
+      storeDir: STORE_PATH,
+    };
+    const datalayer = new DataIntegrityTree(storeId, options);
+    await datalayer.upsertKey(fileStream, key);
+
+  } catch (error: any) {
+    console.error('Cannot upsert file:', error.message);
+  }
+}
 
 export const getKey = async (key: string) => {
   try {
@@ -77,6 +122,7 @@ export const getKey = async (key: string) => {
               printableHexString += '\n'
             }
           }
+          console.log(printableHexString);
         })
       }
     });
@@ -188,3 +234,5 @@ export const verfiyProof = async (proof: string, sha256: string) => {
     console.error('Failed to process proof:', error.message);
   }
 }
+
+

@@ -96,7 +96,7 @@ export function storeCommand(yargs: Argv<{}>) {
           describe: "The store action to perform",
           type: "string",
           choices: ["validate", "upsert_file", "upsert_data", "remove", "get_root", "get_proof", "verify_proof",
-            "list", "get_key",],
+            "list", "get_key", "delete_key"],
         })
         .option ("key", {
           type: "string",
@@ -150,6 +150,11 @@ export function storeCommand(yargs: Argv<{}>) {
           } else if (argv.action === "upsert_file") {
             if (!argv.key || !argv.path) {
               throw new Error(`The --key and --path options are required for the '${argv.action}' action.`);
+            }
+          }
+          else if (argv.action === "delete_key") {
+            if (!argv.key) {
+              throw new Error(`The --key option is required for the '${argv.action}' action.`);
             }
           }
           return true;

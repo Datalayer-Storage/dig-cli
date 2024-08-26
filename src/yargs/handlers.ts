@@ -15,14 +15,14 @@ import {
   login,
   logout,
   getProof,
-  verfiyProof,
+  verifyProof,
   listKeys,
   getRoot,
   getKey,
   upsertData,
   syncRemoteSeed as _syncRemoteSeed,
   setRemoteSeed as _setRemoteSeed,
-  generateEntropyValue, upsertFile
+  generateEntropyValue, upsertFile, deleteKey
 } from "../actions";
 import { CreateStoreUserInputs } from "../types";
 import { startPreviewServer } from "../content_server/server";
@@ -105,7 +105,7 @@ export const handlers = {
         }
         case "verify_proof": {
           const {proof, sha256} = argv;
-          await verfiyProof(proof, sha256);
+          await verifyProof(proof, sha256);
           break;
         }
         case "list": {
@@ -119,6 +119,11 @@ export const handlers = {
         case "get_key": {
           const {key} = argv;
           await getKey(key);
+          break;
+        }
+        case "delete_key": {
+          const {key} = argv;
+          await deleteKey(key);
           break;
         }
         default:

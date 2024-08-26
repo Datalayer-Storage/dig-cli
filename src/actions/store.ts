@@ -17,7 +17,26 @@ export const melt = async (): Promise<void> => {
 
 }*/
 
-export const upsertData = async (key: string, data: string): Promise<void> => {
+export const deleteKey = async (key: string) => {
+  try {
+    const storeIdResult = getActiveStoreId();
+    const storeId = storeIdResult?.toString();
+    if (!storeId){
+      throw new Error('Failed to find datastore');
+    }
+
+    const options: DataIntegrityTreeOptions = {
+      storageMode: "local",
+      storeDir: STORE_PATH,
+    };
+    const datalayer = new DataIntegrityTree(storeId, options);
+    datalayer.deleteKey(key);
+  } catch (error: any) {
+    console.error('Cannot delete key:', error.message);
+  }
+}
+
+export const upsertData = async (key: string, data: string) => {
   try {
     const storeIdResult = getActiveStoreId();
     const storeId = storeIdResult?.toString();
@@ -42,7 +61,7 @@ export const upsertData = async (key: string, data: string): Promise<void> => {
   }
 }
 
-export const upsertFile = async (key: string, filePath: string): Promise<void> => {
+export const upsertFile = async (key: string, filePath: string) => {
   try {
     const storeIdResult = getActiveStoreId();
     const storeId = storeIdResult?.toString();
@@ -210,7 +229,7 @@ export const listKeys = async () => {
   }
 }
 
-export const verfiyProof = async (proof: string, sha256: string) => {
+export const verifyProof = async (proof: string, sha256: string) => {
   try {
     const storeIdResult = getActiveStoreId();
     const storeId = storeIdResult?.toString();
@@ -231,7 +250,7 @@ export const verfiyProof = async (proof: string, sha256: string) => {
       console.error('Proof verification failed with provided hash');
     }
   } catch (error: any) {
-    console.error('Failed to process proof:', error.message);
+    console.error('Cannot process proof:', error.message);
   }
 }
 

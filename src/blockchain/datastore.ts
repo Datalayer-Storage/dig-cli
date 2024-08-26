@@ -28,6 +28,7 @@ import {
   getManifestFilePath,
   getHeightFilePath,
   getActiveStoreId,
+  STORE_PATH,
 } from "../utils/config";
 import { selectUnspentCoins, calculateFeeForCoinSpends } from "./coins";
 import { RootHistoryItem, DatFile } from "../types";
@@ -466,7 +467,7 @@ export const validateStore = async (): Promise<boolean> => {
   // Validate each root hash
   for (const rootHash of manifestHashes) {
     const datFilePath = path.join(
-      DIG_FOLDER_PATH,
+      STORE_PATH,
       storeId.toString("hex"),
       `${rootHash}.dat`
     );

@@ -20,13 +20,14 @@ import {
   getRoot,
   getKey,
   upsertData,
-  upsertFile, deleteKey
+  upsertFile,
+  deleteKey,
   syncRemoteSeed as _syncRemoteSeed,
   setRemoteSeed as _setRemoteSeed,
   generateEntropyValue
 } from "../actions";
 import { CreateStoreUserInputs } from "../types";
-import { startPreviewServer } from "../content_server/server";
+import { startContentServer } from "../content_server/server";
 import { checkStoreWritePermissions } from "../actions";
 import { getActiveStoreId } from "../utils/config";
 

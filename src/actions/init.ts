@@ -66,6 +66,8 @@ export const init = async (
         "hex"
       )}`
     );
+
+    process.exit();
   } else {
     console.log("Failed to initialize the data layer store.");
     fs.rmSync(DIG_FOLDER_PATH, { recursive: true, force: true });

@@ -76,7 +76,6 @@ async function readMnemonicFromKeyring(): Promise<string | null> {
         const { data, nonce, salt } = keyringData;
         const key = generateKey(salt);
         const mnemonic = decryptMnemonic(data, key, nonce);
-        console.log("Retrieved and decrypted mnemonic seed phrase from keyring.");
         return mnemonic;
       }
     }
@@ -126,7 +125,6 @@ async function deleteMnemonicFromKeyring(): Promise<boolean> {
  * Retrieves the mnemonic seed phrase from the keyring file.
  */
 export async function getMnemonic(): Promise<string | null> {
-  console.log("Reading mnemonic seed phrase from keyring...");
   return await readMnemonicFromKeyring();
 }
 

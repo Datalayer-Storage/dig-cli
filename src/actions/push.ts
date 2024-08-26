@@ -7,10 +7,6 @@ import {
   CONFIG_FILE_PATH,
   ensureDigConfig,
 } from "../utils/config";
-import {
-  doesHostExistInMirrors,
-  createServerCoin,
-} from "../blockchain/server_coin";
 import { getLocalRootHistory } from "../blockchain/datastore";
 import { uploadDirectory } from "../utils/upload";
 import { promptForRemote } from "../prompts";

@@ -27,6 +27,7 @@ export const headStore = async (req: Request, res: Response): Promise<void> => {
 
     const { username, password } = await getCredentials();
 
+    console.log("Provided credentials:", providedUsername, providedPassword);
     if (providedUsername !== username || providedPassword !== password) {
       throw new HttpError(401, "Unauthorized");
     }

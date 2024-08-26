@@ -49,14 +49,21 @@ export const retrieveAndDecryptCredentials = async (
 };
 
 // Function to prompt for username and password
-export const promptCredentials = async (
-  remote: string
-): Promise<Credentials> => {
+export const promptCredentials = async (remote: string): Promise<Credentials> => {
   if (!validateIPAddress(remote)) {
     throw new Error("Invalid IP address. Please enter a valid IP address.");
   }
 
   const nconfManager = new NconfManager("credentials.json");
+
+  // Check if credentials are already stored
+  const storedUsername = await retrieveAndDecryptCredentials(nconfManager, remote, "username");
+  const storedPassword = await retrieveAndDecryptCredentials(nconfManager, remote, "password");
+
+  if (storedUsername && storedPassword) {
+    console.log(`Using stored credentials for remote ${remote}`);
+    return { username: storedUsername, password: storedPassword };
+  }
 
   // If not stored, prompt the user for credentials
   const rl = readline.createInterface({
@@ -78,18 +85,8 @@ export const promptCredentials = async (
   rl.close();
 
   if (storeCredentials.toLowerCase() === "y") {
-    await encryptAndStoreCredentials(
-      nconfManager,
-      remote,
-      "username",
-      username
-    );
-    await encryptAndStoreCredentials(
-      nconfManager,
-      remote,
-      "password",
-      password
-    );
+    await encryptAndStoreCredentials(nconfManager, remote, "username", username);
+    await encryptAndStoreCredentials(nconfManager, remote, "password", password);
   }
 
   return { username, password };
@@ -112,7 +109,7 @@ export const clearCredentials = async (remote: string) => {
 
 export function generateHighEntropyValue(length: number = 10): string {
   const possibleChars =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()-_=+[]{}|;:',.<>?/~`";
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%";
   const charSetSize = possibleChars.length;
   let result = "";
   let remainingBytes = crypto.randomBytes(length * 2); // Generate more random bytes than needed

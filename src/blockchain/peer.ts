@@ -117,10 +117,12 @@ const createErrorHandlingProxy = (peer: Peer): Peer => {
             const result = await originalMethod.apply(target, args);
             return result;
           } catch (error: any) {
-            cachedPeer = null;
-            clearMemoizedIPs();
-            const newPeer = await getPeer();
-            return (newPeer as any)[prop](...args);
+            if (error.message.includes("AlreadyClosed)")) {
+              cachedPeer = null;
+              clearMemoizedIPs();
+              const newPeer = await getPeer();
+              return (newPeer as any)[prop](...args);
+            }
           }
         };
       }
@@ -129,7 +131,6 @@ const createErrorHandlingProxy = (peer: Peer): Peer => {
     },
   });
 };
-
 
 // Main Functions
 export const getPeer = async (): Promise<Peer> => {
@@ -149,7 +150,7 @@ export const getPeer = async (): Promise<Peer> => {
   }
 
   const bestPeerIndex = await selectBestPeer(peers, peerIPs);
-  const bestPeer = peers[bestPeerIndex];
+  const bestPeer = createErrorHandlingProxy(peers[bestPeerIndex]);
 
   cachedPeer = { peer: bestPeer, timestamp: now };
 
@@ -220,11 +221,10 @@ const selectBestPeer = async (
   }
 
   const highestPeak = Math.max(...validHeights);
-  return validHeights.findIndex(
-    (height, idx) =>
-      peerIPs[idx] === LOCALHOST && height === highestPeak
-        ? true
-        : height === highestPeak
+  return validHeights.findIndex((height, idx) =>
+    peerIPs[idx] === LOCALHOST && height === highestPeak
+      ? true
+      : height === highestPeak
   );
 };
 

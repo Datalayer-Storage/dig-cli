@@ -6,6 +6,7 @@ import {
   setRemote,
   CONFIG_FILE_PATH,
   ensureDigConfig,
+  STORE_PATH,
 } from "../utils/config";
 import { getLocalRootHistory } from "../blockchain/datastore";
 import { uploadDirectory } from "../utils/upload";
@@ -171,7 +172,7 @@ export const push = async (): Promise<void> => {
 
     await uploadDirectory(
       config.remote,
-      DIG_FOLDER_PATH,
+      STORE_PATH,
       storeId.toString("hex"),
       username,
       password,

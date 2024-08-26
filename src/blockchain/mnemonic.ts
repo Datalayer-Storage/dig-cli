@@ -122,6 +122,7 @@ async function deleteMnemonicFromKeyring(): Promise<boolean> {
  * Retrieves the mnemonic seed phrase from the keyring file.
  */
 export async function getMnemonic(): Promise<string | null> {
+  console.log("Reading mnemonic seed phrase from keyring...");
   return await readMnemonicFromKeyring();
 }
 

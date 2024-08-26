@@ -17,6 +17,7 @@ const DNS_HOSTS = [
 ];
 const CONNECTION_TIMEOUT = 2000;
 const CACHE_DURATION = 30000; // Cache duration in milliseconds (e.g., 30 seconds)
+const METHOD_TIMEOUT = 60000; // Timeout duration for peer methods (1 minute)
 
 let cachedPeer: { peer: Peer; timestamp: number } | null = null;
 
@@ -112,9 +113,30 @@ const createPeerProxy = (
       if (typeof originalMethod === "function") {
         return async (...args: any[]) => {
           try {
-            return await originalMethod.apply(target, args);
+            // Set up a timeout for the method call
+            const timeoutPromise = new Promise((_, reject) =>
+              setTimeout(() => {
+                console.warn(
+                  `Method ${String(prop)} on peer timed out after ${
+                    METHOD_TIMEOUT / 1000
+                  } seconds. Attempting to switch peers.`
+                );
+                reject(new Error("Method timeout"));
+              }, METHOD_TIMEOUT)
+            );
+
+            // Call the method and race it against the timeout
+            const result = await Promise.race([
+              originalMethod.apply(target, args),
+              timeoutPromise,
+            ]);
+
+            return result;
           } catch (error: any) {
-            if (error.message.includes("AlreadyClosed")) {
+            if (
+              error.message.includes("AlreadyClosed") ||
+              error.message === "Method timeout"
+            ) {
               cachedPeer = null; // Invalidate the cached peer
 
               const newPeer = await getPeer(); // Get a new peer instance

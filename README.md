@@ -1,169 +1,82 @@
+*Introduction To DIG and the DIG Network
 
-# DataIntegrityTree
+The DIG Network offers a robust solution for ensuring data integrity and censorship resistance by leveraging decentralized technology. When you add your data to DIG, it is encoded and served from a Merkle tree, with the Merkle root securely stored on the blockchain by the data owner. This structure guarantees that the data can be verified by anyone, ensuring that what they consume is exactly what was intended, free from manipulation or tampering.
 
-`DataIntegrityTree` is a TypeScript class designed to efficiently organize and manage any arbitrary file data using a Merkle tree. A Merkle tree is a cryptographic data structure that allows for secure and efficient verification of data integrity. By organizing files into a Merkle tree, `DataIntegrityTree` enables you to verify that a specific piece of data belongs to a dataset and ensures that the data has not been altered.
+This capability is particularly valuable for decentralized applications (dApps). With DIG, a dApp developer can have their application backed up and served globally by a network of peers. The decentralized nature of the DIG Network means that even if a dApp is served by a random peer, users can trust that it remains unaltered. 
 
-This class provides methods to store, retrieve, and verify data, making it particularly useful in scenarios where data integrity is critical, such as distributed systems, blockchain, or secure file storage.
+The network's ability to stitch together all the peers serving your content creates a unified Decentralized Content Delivery Network (CDN), making it easier for end-users to access the data without needing to manually locate the peers. The philosophy behind DIG suggests that if there are enough peers distributed across various legal jurisdictions worldwide, the dApp achieves a significant level of censorship resistance. This is because the chance of every peer being simultaneously shut down is extremely low.
 
-## Store ID
-The storeId is a 64-character hexadecimal string that uniquely represents a data store within DataIntegrityTree. This ID is crucial as it ensures that each data store is distinct and isolated. While the storeId can be generated from any source, it is important to ensure that storeIds are generated in a manner that guarantees their uniqueness. This can typically be achieved using cryptographic hash functions or UUIDs. The uniqueness of storeIds is vital to prevent data collisions and ensure that each data store maintains its integrity independently.
+Moreover, DIG opens up possibilities for creating dApps where write access is controlled by a cryptographic key, potentially owned by a Decentralized Autonomous Organization (DAO). This could lead to the development of dApps that are not owned by any single entity but are maintained by anonymous DAO members, further enhancing the censorship resistance and resilience of the application.
 
-## Features
+### Using DIG: A Step-by-Step Guide
 
-- **Upsert Key**: Store a binary stream, compress it, calculate its SHA-256 hash, and store it in a Merkle tree.
-- **Verify Key Integrity**: Verify the integrity of a file based on its SHA-256 hash and check if it is part of a specified Merkle tree root.
-- **Get Value Stream**: Retrieve a readable stream of a stored file, with automatic decompression.
-- **Merkle Tree Management**: Rebuild, serialize, deserialize, and commit Merkle trees.
-- **Proof and Verification**: Generate proofs for files and verify them against the Merkle tree.
-- **Delete Operations**: Delete individual keys or all keys in the Merkle tree.
+To effectively use the DIG Network, it's essential to become familiar with the DIG CLI commands. While it is recommended to explore all available commands, this guide focuses on the core workflow that developers will frequently use.
 
-## Filesystem Structure
+**Before You Begin:** Ensure your DIG environment is properly set up by following the [SETUP.md](./SETUP.md) guide.
 
-The `DataIntegrityTree` class organizes files in a hierarchical directory structure to efficiently manage a large number of files. This approach enhances performance and scalability, especially when dealing with millions of files.
+---
 
-### Storage Modes
+#### Step 1: Prepare Your Project
 
-- **Local Mode**: In local mode, the data directory is specific to each store. Data is stored inside the `storeDir/storeId/data` directory, which is structured using the first few characters of each file’s SHA-256 hash. This creates multiple levels of directories to prevent overloading any single directory.
-  
-- **Unified Mode**: In unified mode, the data directory is shared across all stores, residing in the `storeDir/data` directory. Files are still organized using their SHA-256 hash to ensure efficient storage and retrieval.
+1. **Add `.dig` to `.gitignore`:**
+   - Open your dApp project.
+   - Add `.dig` to your `.gitignore` file to ensure that DIG-related files are not tracked by Git.
 
-### Manifest File
+2. **Build Your Project:**
+   - Compile your project, directing the output to the `./dist` folder (or any build folder of your choice). By default, the DIG CLI looks for the `./dist` folder.
 
-The manifest file (`manifest.dat`) stores the history of Merkle tree root hashes. It is located directly under the store's directory. Each line in the manifest file corresponds to a different state of the Merkle tree.
+---
 
-### Merkle Tree Data Files
+#### Step 2: Initialize DIG for Your Project
 
-Serialized Merkle trees are stored as `.dat` files named after their root hash. This allows the `DataIntegrityTree` to load the state of the Merkle tree at any given point in time.
+1. **Initialize DIG:**
+   - Run the following command in your project directory:
+     ```bash
+     dig init
+     ```
+   - This will create a `.dig` folder in your project directory. An empty data store will also be created and committed to the blockchain. Wait for the blockchain transaction to confirm before proceeding to the next step.
 
-### Binary Files Storage
+---
 
-Binary files are stored in a directory structure that reflects the first few characters of their SHA-256 hash, with each level of the directory corresponding to two characters from the hash. This structure efficiently distributes files across the filesystem, enhancing performance when dealing with large datasets.
+#### Step 3: Commit Your Build to the Data Store
 
-## Usage
+1. **Commit the `dist` Folder:**
+   - Use the following command to commit your `dist` folder to the DIG data store:
+     ```bash
+     dig commit
+     ```
+   - This command inserts all files from the `./dist` folder into the Merkle root of your new data store and updates the blockchain with the resulting Merkle root. This process involves another blockchain transaction, which you must wait to confirm.
 
-### Importing and Initializing
+---
 
-```typescript
-import { DataIntegrityTree } from './DataIntegrityTree';
+#### Step 4: Push Your Data to the DIG Node
 
-const storeId = 'a'.repeat(64); // A 64-character hexadecimal string
-const dataLayer = new DataIntegrityTree(storeId, { storageMode: 'local' });
-```
+1. **Push to the DIG Node:**
+   - To make your data available on a DIG Node, run the following command:
+     ```bash
+     dig push
+     ```
+   - This command uploads your files to the DIG Node, verifying integrity and permissions along the way. Ensure your DIG Node is set up according to the [SETUP.md](#) guide.
 
-### Upsert a Key
+---
 
-Store a binary stream in the Merkle tree:
+#### Step 5: Verify Your dApp on the DIG Network
 
-```typescript
-import { Readable } from 'stream';
+1. **Check Availability:**
+   - After a few moments, your DIG Node will detect the new store and register it with the DIG Network. You can verify this by visiting:
+     ```http
+     http://your.ip.address
+     ```
+   - You should be able to find and access your dApp. Congratulations, your dApp is now live on the DIG Network!
 
-const data = "This is some test data";
-const readStream = Readable.from([data]);
+---
 
-dataLayer.upsertKey(readStream, 'test_key')
-  .then(() => console.log('Key upserted successfully'))
-  .catch(err => console.error('Error upserting key:', err));
-```
+#### Step 6: Accessing Your dApp via the Network
 
-### Verify Key Integrity
+Once your dApp is on the network, it can be discovered and accessed by any client, browser, or domain acting as a cache service using a unified identifier called the **Universal DataLayer Identifier (UDI)**. This feature is still under development and will be available soon. Updates will be provided as the UDI and associated technologies come online.
 
-Verify the integrity of a stored file:
+**In the Meantime:**
+- You can use **nginx** or a **reverse proxy** to map your store to a domain on your local machine and serve it like a traditional website.
+- In the future, a custom browser will automatically load your app from the network using the UDI, potentially integrated with a decentralized name service.
 
-```typescript
-const sha256 = crypto.createHash("sha256").update(data).digest("hex");
-const rootHash = dataLayer.getRoot();
-
-dataLayer.verifyKeyIntegrity(sha256, rootHash)
-  .then(isValid => {
-    if (isValid) {
-      console.log('File integrity verified.');
-    } else {
-      console.log('File integrity verification failed.');
-    }
-  })
-  .catch(err => console.error('Error verifying key integrity:', err));
-```
-
-### Get a Value Stream
-
-Retrieve and decompress a stored file:
-
-```typescript
-const hexKey = Buffer.from('test_key').toString('hex');
-const fileStream = dataLayer.getValueStream(hexKey);
-
-fileStream.on('data', chunk => {
-  console.log('Received chunk:', chunk.toString());
-});
-
-fileStream.on('end', () => {
-  console.log('File streaming completed.');
-});
-```
-
-### Commit the Merkle Tree
-
-Commit the current state of the Merkle tree:
-
-```typescript
-const rootHash = dataLayer.commit();
-console.log('Committed Merkle tree with root hash:', rootHash);
-```
-
-### Generate and Verify Proofs
-
-Generate a proof for a file and verify it:
-
-```typescript
-const proof = dataLayer.getProof(hexKey, sha256);
-const isValid = dataLayer.verifyProof(proof, sha256);
-
-if (isValid) {
-  console.log('Proof verified successfully.');
-} else {
-  console.log('Proof verification failed.');
-}
-```
-
-### Delete Keys and Leaves
-
-Delete a key or all keys in the Merkle tree:
-
-```typescript
-dataLayer.deleteKey('test_key');
-console.log('Key deleted.');
-
-dataLayer.deleteAllLeaves();
-console.log('All leaves deleted from the Merkle tree.');
-```
-
-### Get Root Difference
-
-Compare two Merkle tree roots:
-
-```typescript
-const diff = dataLayer.getRootDiff(rootHash1, rootHash2);
-console.log('Added keys:', Array.from(diff.added.keys()));
-console.log('Deleted keys:', Array.from(diff.deleted.keys()));
-```
-
-## Methods
-
-- **constructor(storeId: string, options: DataIntegrityTreeOptions = {})**: Initializes a new `DataIntegrityTree` instance.
-- **upsertKey(readStream: Readable, key: string): Promise<void>**: Stores a binary stream in the Merkle tree.
-- **verifyKeyIntegrity(sha256: string, rootHash: string): Promise<boolean>**: Verifies the integrity of a file and checks if it is part of the specified Merkle root.
-- **getValueStream(hexKey: string, rootHash?: string): Readable**: Retrieves a readable stream for a file.
-- **commit(): string**: Commits the current state of the Merkle tree.
-- **getProof(hexKey: string, sha256: string, rootHash?: string): string**: Generates a proof for a file.
-- **verifyProof(proofObjectHex: string, sha256: string): boolean**: Verifies a proof against the Merkle tree.
-- **deleteKey(key: string): void**: Deletes a key from the Merkle tree.
-- **deleteAllLeaves(): void**: Deletes all keys from the Merkle tree.
-- **getRootDiff(rootHash1: string, rootHash2: string): { added: Map<string, string>, deleted: Map<string, string> }**: Compares two Merkle tree roots.
-- **getRoot(): string**: Returns the root hash of the Merkle tree.
-- **serialize(rootHash?: string): object**: Serializes the Merkle tree to a JSON object.
-- **deserializeTree(rootHash: string): MerkleTree**: Deserializes a JSON object to a Merkle tree.
-- **clearPendingRoot(): void**: Clears pending changes and reverts to the latest committed state.
-
-## License
-
-This project is licensed under the MIT License.
+By following this workflow, you can securely deploy your dApp to the DIG Network, ensuring that it is backed up, served globally, and resistant to censorship.

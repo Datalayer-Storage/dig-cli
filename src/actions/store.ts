@@ -1,3 +1,6 @@
+import {getActiveStoreId, STORE_PATH} from "../utils/config";
+import {DataIntegrityTree, DataIntegrityTreeOptions} from "../DataIntegrityTree";
+import {Buffer} from "buffer";
 
 /*
 export const upsert = async ({ writerPublicAddress, adminPublicAddress, oracleFee  }): Promise<void> => {
@@ -16,10 +19,6 @@ export const melt = async (): Promise<void> => {
 
 }*/
 
-import {DIG_FOLDER_PATH, getActiveStoreId} from "../utils/config";
-import {DataIntegrityTree, DataIntegrityTreeOptions} from "../DataIntegrityTree";
-import {Buffer} from "buffer";
-
 export const getKey = async (key: string) => {
   try {
     const storeIdResult = await getActiveStoreId();
@@ -30,7 +29,7 @@ export const getKey = async (key: string) => {
 
     const options: DataIntegrityTreeOptions = {
       storageMode: "local",
-      storeDir: DIG_FOLDER_PATH,
+      storeDir: STORE_PATH,
     };
     const datalayer = new DataIntegrityTree(storeId, options);
     const valueStream = datalayer.getValueStream(key);
@@ -101,7 +100,7 @@ export const getProof = async (key: string, sha256: string) => {
 
     const options: DataIntegrityTreeOptions = {
       storageMode: "local",
-      storeDir: DIG_FOLDER_PATH,
+      storeDir: STORE_PATH,
     };
     const datalayer = new DataIntegrityTree(storeId, options);
     const proof = datalayer.getProof(key, sha256);
@@ -123,7 +122,7 @@ export const getRoot = async () => {
 
     const options: DataIntegrityTreeOptions = {
       storageMode: "local",
-      storeDir: DIG_FOLDER_PATH,
+      storeDir: STORE_PATH,
     };
     const datalayer = new DataIntegrityTree(storeId, options);
     const rootHash = datalayer.getRoot();
@@ -144,7 +143,7 @@ export const listKeys = async () => {
 
     const options: DataIntegrityTreeOptions = {
       storageMode: "local",
-      storeDir: DIG_FOLDER_PATH,
+      storeDir: STORE_PATH,
     };
     const datalayer = new DataIntegrityTree(storeId, options);
     const keysArr = datalayer.listKeys();
@@ -175,7 +174,7 @@ export const verfiyProof = async (proof: string, sha256: string) => {
 
     const options: DataIntegrityTreeOptions = {
       storageMode: "local",
-      storeDir: DIG_FOLDER_PATH,
+      storeDir: STORE_PATH,
     };
     const datalayer = new DataIntegrityTree(storeId, options);
     const proofVerified = datalayer.verifyProof(proof, sha256);

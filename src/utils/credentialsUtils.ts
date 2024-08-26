@@ -109,7 +109,7 @@ export const clearCredentials = async (remote: string) => {
 
 export function generateHighEntropyValue(length: number = 10): string {
   const possibleChars =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%";
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
   const charSetSize = possibleChars.length;
   let result = "";
   let remainingBytes = crypto.randomBytes(length * 2); // Generate more random bytes than needed

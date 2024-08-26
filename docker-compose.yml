@@ -24,7 +24,7 @@ services:
     ports:
       - "4159:4159"
     volumes:
-      - ~/.dig:/.dig
+      - ~/.dig/remote:/.dig
     environment:
       - DIG_USERNAME=1
       - DIG_PASSWORD=1
@@ -39,7 +39,7 @@ services:
     ports:
       - "80:80"
     volumes:
-      - ~/.dig:/.dig
+      - ~/.dig/remote:/.dig
     environment:
       - DIG_FOLDER_PATH=/.dig
       - PORT=80

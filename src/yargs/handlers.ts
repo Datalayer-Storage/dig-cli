@@ -1,8 +1,24 @@
-import { getOrCreateMnemonic, deleteMnemonic, getMnemonic, importMnemonic } from "../blockchain/mnemonic";
-import {commit, push, pull, clone, setRemote, init, validate, login, setRemoteSeed as _setRemoteSeed} from "../actions";
-import { CreateStoreUserInputs } from '../types';
-import {logout} from "../actions/logout";
-import { startPreviewServer } from '../content_server/server';
+import {
+  getOrCreateMnemonic,
+  deleteMnemonic,
+  getMnemonic,
+  importMnemonic,
+} from "../blockchain/mnemonic";
+import {
+  commit,
+  push,
+  pull,
+  clone,
+  setRemote,
+  init,
+  validate,
+  login,
+  syncRemoteSeed as _syncRemoteSeed,
+  setRemoteSeed as _setRemoteSeed,
+} from "../actions";
+import { CreateStoreUserInputs } from "../types";
+import { logout } from "../actions/logout";
+import { startPreviewServer } from "../content_server/server";
 import { checkStoreWritePermissions } from "../actions";
 import { getActiveStoreId } from "../utils/config";
 
@@ -37,11 +53,14 @@ export const handlers = {
     console.log("Store upsert executed");
   },
   removeStore: async (writer?: string, oracle_fee?: number, admin?: string) => {
-   // await removeStore(writer, oracle_fee, admin);
+    // await removeStore(writer, oracle_fee, admin);
     console.log("Store remove executed");
   },
   setRemote: async (peer: string) => {
     await setRemote(peer);
+  },
+  syncRemoteSeed: async () => {
+    await _syncRemoteSeed();
   },
   setRemoteSeed: async (seed: string) => {
     await _setRemoteSeed(seed);
@@ -55,10 +74,10 @@ export const handlers = {
         await validate();
         break;
       case "update":
-      //  await upsertStore();
+        //  await upsertStore();
         break;
       case "remove":
-       // await removeStore();
+        // await removeStore();
         break;
       default:
         console.error("Unknown store action");
@@ -87,5 +106,5 @@ export const handlers = {
   },
   logout: async () => {
     await logout();
-  }
+  },
 };

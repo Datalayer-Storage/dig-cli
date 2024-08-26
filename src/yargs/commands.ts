@@ -117,33 +117,46 @@ export function storeCommand(yargs: Argv<{}>) {
 }
 
 export function remoteCommand(yargs: Argv<{}>) {
-  return yargs.command(
-    "remote set <type> <value>",
-    "Set a datastore remote configuration (peer or seed)",
-    // @ts-ignore
-    (yargs: Argv<{ type: string; value: string }>) => {
-      return yargs
-        .positional("type", {
+  return yargs
+    .command(
+      "remote set peer <value>",
+      "Set a datastore remote peer",
+      // @ts-ignore
+      (yargs: Argv<{ value: string }>) => {
+        return yargs.positional("value", {
           type: "string",
-          describe: "The type of configuration to set (peer or seed)",
-          choices: ["peer", "seed"],
-        })
-        .positional("value", {
-          type: "string",
-          describe: "The value to set for the specified configuration",
+          describe: "The peer IP address to set",
         });
-    },
-    async (argv: { type: string; value: string }) => {
-      if (argv.type === "peer") {
+      },
+      async (argv: { value: string }) => {
         await handlers.setRemote(argv.value);
-      } else if (argv.type === "seed") {
-        await handlers.setRemoteSeed(argv.value);
-      } else {
-        console.error("Invalid type specified. Use 'peer' or 'seed'.");
       }
-    }
-  );
+    )
+    .command(
+      "remote sync seed",
+      "Sync the mnemonic seed with the remote datastore",
+      {},
+      async () => {
+        await handlers.syncRemoteSeed();
+      }
+    )
+    .command(
+      "remote set seed <seed>",
+      "Set the mnemonic seed on the remote datastore",
+      // @ts-ignore
+      (yargs: Argv<{ seed: string }>) => {
+        return yargs.positional("seed", {
+          type: "string",
+          describe: "The seed phrase to set on the remote",
+        });
+      },
+      async (argv: { seed: string }) => {
+        await handlers.setRemoteSeed(argv.seed);
+      }
+    );
 }
+
+
 
 export function keysCommand(yargs: Argv<{}>) {
   // @ts-ignore

@@ -13,7 +13,7 @@ const DNS_HOSTS = [
   "dns-introducer.chia.net",
   "chia.ctrlaltdel.ch",
   "seeder.dexie.space",
-  "chia.hoffmang.com"
+  "chia.hoffmang.com",
 ];
 const CONNECTION_TIMEOUT = 2000;
 const CACHE_DURATION = 30000; // Cache duration in milliseconds (e.g., 30 seconds)
@@ -100,7 +100,11 @@ const getPeerIPs = async (): Promise<string[]> => {
   return memoizedFetchNewPeerIPs();
 };
 
-const createPeerProxy = (peer: Peer, certFile: string, keyFile: string): Peer => {
+const createPeerProxy = (
+  peer: Peer,
+  certFile: string,
+  keyFile: string
+): Peer => {
   return new Proxy(peer, {
     get(target, prop) {
       const originalMethod = (target as any)[prop];
@@ -214,7 +218,7 @@ export const getPeer = async (): Promise<Peer> => {
 };
 
 export const getServerCoinPeer = async (): Promise<ServerCoinPeer> => {
-  const sslFolder = path.resolve(os.homedir(), ".dig", "ssl");
+  let sslFolder = path.resolve(os.homedir(), ".dig", "ssl");
   const certFile = path.join(sslFolder, "public_dig.crt");
   const keyFile = path.join(sslFolder, "public_dig.key");
 
@@ -222,16 +226,15 @@ export const getServerCoinPeer = async (): Promise<ServerCoinPeer> => {
     fs.mkdirSync(sslFolder, { recursive: true });
   }
 
-  const tls = new Tls(certFile, keyFile);
-
   try {
+    const tls = new Tls(certFile, keyFile);
     const hosts = await getPeerIPs();
-
-    return ServerCoinPeer.connect(
+    const peer = ServerCoinPeer.connect(
       `${hosts[0]}:${FULLNODE_PORT}`,
       "mainnet",
       tls
     );
+    return peer;
   } catch (error: any) {
     console.error(`Failed get valid peer for ServerCoin: ${error.message}`);
     console.log("trying again...");

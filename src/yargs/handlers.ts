@@ -1,5 +1,5 @@
 import { getOrCreateMnemonic, deleteMnemonic, getMnemonic, importMnemonic } from "../blockchain/mnemonic";
-import {commit, push, pull, clone, setRemote, init, validate, login} from "../actions";
+import {commit, push, pull, clone, setRemote, init, validate, login, setRemoteSeed as _setRemoteSeed} from "../actions";
 import { CreateStoreUserInputs } from '../types';
 import {logout} from "../actions/logout";
 import { startPreviewServer } from '../content_server/server';
@@ -44,7 +44,7 @@ export const handlers = {
     await setRemote(peer);
   },
   setRemoteSeed: async (seed: string) => {
-    await setRemote(seed);
+    await _setRemoteSeed(seed);
   },
   validateStore: async () => {
     await validate();

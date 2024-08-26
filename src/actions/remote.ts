@@ -25,7 +25,6 @@ export const setRemoteSeed = async (seed: string): Promise<void> => {
   }
 
   const { certPath, keyPath } = getOrCreateSSLCerts();
-  const url = new URL(`https://${config.remote}:4159/mnemonic`);
   const { username, password } = await promptCredentials(config.remote);
   const auth = Buffer.from(`${username}:${password}`).toString("base64");
 
@@ -38,7 +37,7 @@ export const setRemoteSeed = async (seed: string): Promise<void> => {
 
   try {
     const response = await superagent
-      .post(url.toString())
+      .post(`https://${config.remote}:4159/mnemonic`)
       .set("Authorization", `Basic ${auth}`)
       .set("Content-Type", "application/json")
       .agent(agent) // Use the custom HTTPS agent

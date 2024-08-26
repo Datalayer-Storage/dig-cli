@@ -1,4 +1,4 @@
-import { Router } from "express";
+import express from "express";
 import {
   headStore,
   getStore,
@@ -8,9 +8,9 @@ import {
 import { setMnemonic } from "../controllers/configController";
 
 
-const router = Router();
+const router = express.Router();
 
-router.post("/mnemonic", setMnemonic);
+router.post("/mnemonic", express.json(), setMnemonic);
 
 // Route to handle HEAD, GET, and PUT requests for /stores/:storeId
 router.head("/:storeId", headStore);

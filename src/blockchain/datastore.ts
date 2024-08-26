@@ -88,8 +88,6 @@ export const mintDataLayerStore = async (
       delegationLayers,
     ];
 
-    console.log(mintStoreParams);
-
     // Preflight call to mintStore without a fee
     const { coinSpends: preflightCoinSpends } = await mintStore.apply(null, [
       // @ts-ignore

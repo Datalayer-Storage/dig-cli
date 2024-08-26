@@ -1,3 +1,5 @@
+import * as fs from "fs-extra";
+import * as path from "path";
 import * as keytar from "keytar";
 import * as bip39 from "bip39";
 import WalletRpc from "chia-wallet";
@@ -8,37 +10,87 @@ import { askForMnemonicAction, askForMnemonicInput } from "../prompts";
 
 const SERVICE_NAME = "dig-datalayer";
 const ACCOUNT_NAME = "mnemonic-seed";
+const MNEMONIC_FILE_PATH = path.join(process.env.HOME || "", ".mnemonic-seed");
 
-/**
- * Retrieves the mnemonic seed phrase from the OS keychain.
- *
- * @returns {Promise<string | null>} The mnemonic seed phrase, or null if not found.
- */
-export async function getMnemonic(): Promise<string | null> {
-  return keytar.getPassword(SERVICE_NAME, ACCOUNT_NAME);
+// Determine whether to use file-based storage
+const useFileStorage = process.env.REMOTE_NODE === "1";
+
+async function readMnemonicFromFile(): Promise<string | null> {
+  try {
+    if (await fs.pathExists(MNEMONIC_FILE_PATH)) {
+      const mnemonic = await fs.readFile(MNEMONIC_FILE_PATH, "utf-8");
+      console.log("Retrieved mnemonic seed phrase from file storage.");
+      return mnemonic;
+    }
+  } catch (error) {
+    console.error("An error occurred while reading the mnemonic from file:", error);
+  }
+  return null;
+}
+
+async function writeMnemonicToFile(mnemonic: string): Promise<void> {
+  try {
+    await fs.outputFile(MNEMONIC_FILE_PATH, mnemonic);
+    console.log("Mnemonic seed phrase securely stored in file.");
+  } catch (error) {
+    console.error("An error occurred while writing the mnemonic to file:", error);
+  }
+}
+
+async function deleteMnemonicFile(): Promise<boolean> {
+  try {
+    if (await fs.pathExists(MNEMONIC_FILE_PATH)) {
+      await fs.remove(MNEMONIC_FILE_PATH);
+      console.log("Mnemonic seed phrase successfully deleted from file.");
+      return true;
+    }
+    console.log("No mnemonic seed phrase found to delete in file.");
+  } catch (error) {
+    console.error("An error occurred while deleting the mnemonic file:", error);
+  }
+  return false;
 }
 
 /**
- * Generates a new 24-word mnemonic seed phrase, stores it in the keychain, and returns it.
- *
- * @returns {Promise<string>} The newly generated mnemonic seed phrase.
+ * Retrieves the mnemonic seed phrase from the keychain or file storage.
+ */
+export async function getMnemonic(): Promise<string | null> {
+  if (useFileStorage) {
+    return await readMnemonicFromFile();
+  } else {
+    try {
+      const mnemonic = keytar.getPassword(SERVICE_NAME, ACCOUNT_NAME);
+      console.log("Retrieved mnemonic seed phrase from the keychain.");
+      return mnemonic;
+    } catch (error) {
+      console.error(
+        "An error occurred while retrieving the mnemonic seed phrase:",
+        error
+      );
+      return null;
+    }
+  }
+}
+
+/**
+ * Generates a new 24-word mnemonic seed phrase, stores it in the keychain or file, and returns it.
  */
 export async function createMnemonic(): Promise<string> {
   const mnemonic = bip39.generateMnemonic(256); // 256 bits generates a 24-word mnemonic
   console.log("Generated new 24-word mnemonic seed phrase:", mnemonic);
 
-  await keytar.setPassword(SERVICE_NAME, ACCOUNT_NAME, mnemonic);
-  console.log("Mnemonic seed phrase securely stored.");
+  if (useFileStorage) {
+    await writeMnemonicToFile(mnemonic);
+  } else {
+    await keytar.setPassword(SERVICE_NAME, ACCOUNT_NAME, mnemonic);
+    console.log("Mnemonic seed phrase securely stored in keychain.");
+  }
 
   return mnemonic;
 }
 
 /**
- * Imports a mnemonic seed phrase, validates it, and stores it in the keychain.
- * If a seed is provided as an argument, it will be used directly. Otherwise, it will prompt the user to input one.
- *
- * @param {string | undefined} seed - The mnemonic seed phrase provided as an argument, or undefined.
- * @returns {Promise<string>} The validated mnemonic seed phrase.
+ * Imports a mnemonic seed phrase, validates it, and stores it in the keychain or file.
  */
 export async function importMnemonic(seed: string | undefined): Promise<string> {
   let mnemonic: string;
@@ -54,32 +106,29 @@ export async function importMnemonic(seed: string | undefined): Promise<string> 
     throw new Error("Provided mnemonic is invalid.");
   }
 
-  await keytar.setPassword(SERVICE_NAME, ACCOUNT_NAME, mnemonic);
+  if (useFileStorage) {
+    await writeMnemonicToFile(mnemonic);
+  } else {
+    await keytar.setPassword(SERVICE_NAME, ACCOUNT_NAME, mnemonic);
+  }
+  
   console.log("Mnemonic seed phrase securely stored.");
-
   return mnemonic;
 }
 
 /**
- * Retrieves the mnemonic seed phrase from the OS keychain or environment variable.
- * If the seed doesn't exist and the environment variable is not set, prompts the user to provide, generate, or import a new one.
- * Stores the seed in the keychain if a new one is generated or imported.
- *
- * @returns {Promise<string>} The mnemonic seed phrase.
+ * Retrieves or generates a mnemonic seed phrase, storing it in the keychain or file.
  */
 export async function getOrCreateMnemonic(): Promise<string> {
-  // Check if the MNEMONIC environment variable is set
   let mnemonic: string | null | undefined = process.env.CHIA_MNEMONIC;
 
   if (mnemonic) {
     console.log("Using mnemonic from environment variable.");
   } else {
-    // If not, retrieve the mnemonic from the keychain
     mnemonic = await getMnemonic();
   }
 
   if (!mnemonic) {
-    // If still not available, prompt the user
     const { action } = await askForMnemonicAction();
 
     if (action === "Provide") {
@@ -96,43 +145,42 @@ export async function getOrCreateMnemonic(): Promise<string> {
       throw new Error("Mnemonic seed phrase is required.");
     }
 
-    // Store the mnemonic in the keychain
-    await keytar.setPassword(SERVICE_NAME, ACCOUNT_NAME, mnemonic);
-    console.log("Mnemonic seed phrase securely stored.");
+    if (!useFileStorage) {
+      await keytar.setPassword(SERVICE_NAME, ACCOUNT_NAME, mnemonic);
+    }
   }
 
   return mnemonic;
 }
 
 /**
- * Deletes the mnemonic seed phrase from the OS keychain.
- *
- * @returns {Promise<boolean>} Returns true if the deletion was successful, false otherwise.
+ * Deletes the mnemonic seed phrase from the keychain or file.
  */
 export async function deleteMnemonic(): Promise<boolean> {
-  try {
-    const result = await keytar.deletePassword(SERVICE_NAME, ACCOUNT_NAME);
-    if (result) {
-      console.log(
-        "Mnemonic seed phrase successfully deleted from the keychain."
+  if (useFileStorage) {
+    return await deleteMnemonicFile();
+  } else {
+    try {
+      const result = await keytar.deletePassword(SERVICE_NAME, ACCOUNT_NAME);
+      if (result) {
+        console.log(
+          "Mnemonic seed phrase successfully deleted from the keychain."
+        );
+      } else {
+        console.log("No mnemonic seed phrase found to delete.");
+      }
+      return result;
+    } catch (error) {
+      console.error(
+        "An error occurred while deleting the mnemonic seed phrase:",
+        error
       );
-    } else {
-      console.log("No mnemonic seed phrase found to delete.");
+      return false;
     }
-    return result;
-  } catch (error) {
-    console.error(
-      "An error occurred while deleting the mnemonic seed phrase:",
-      error
-    );
-    return false;
   }
 }
 
-/**
- * Imports the mnemonic seed phrase from the Chia client and it active wallet.
- * @returns {Promise<string>} The mnemonic seed phrase.
- */
+// The importChiaMnemonic function remains unchanged
 export const importChiaMnemonic = async (): Promise<string> => {
   const chiaRoot = getChiaRoot();
   const certificateFolderPath = `${chiaRoot}/config/ssl`;

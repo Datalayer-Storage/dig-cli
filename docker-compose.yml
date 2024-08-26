@@ -45,16 +45,6 @@ services:
       - PORT=80
       - REMOTE_NODE=1
 
-  sync-service:
-    image: michaeltaylor3d/dig-sync-service:latest
-   # depends_on:
-   #   - chia-nodes
-    volumes:
-      - ~/.dig/stores:/.dig
-    environment:
-      - DIG_FOLDER_PATH=/.dig
-      - REMOTE_NODE=1
-
 networks:
   default:
     name: dig_network

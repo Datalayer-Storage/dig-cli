@@ -7,10 +7,6 @@ import {
   CONFIG_FILE_PATH,
   ensureDigConfig,
 } from "../utils/config";
-import {
-  doesHostExistInMirrors,
-  createServerCoin,
-} from "../blockchain/server_coin";
 import { getLocalRootHistory } from "../blockchain/datastore";
 import { uploadDirectory } from "../utils/upload";
 import { promptForRemote } from "../prompts";
@@ -182,19 +178,9 @@ export const push = async (): Promise<void> => {
       nonce,
       generationIndex
     );
-
-    // Dont automatically cereate server coin for localhost since they are not globally observable
-    if (!["localhost", "127.0.0.1"].includes(config.remote)) {
-      // Ensure server coin exists for the remote
-      const serverCoinExists = await doesHostExistInMirrors(
-        storeId.toString("hex"),
-        config.remote
-      );
-      if (!serverCoinExists) {
-        await createServerCoin(storeId.toString("hex"), [config.remote]);
-      }
-    }
   } catch (error: any) {
     console.error(`Push failed: ${error.message}`);
+  } finally {
+    process.exit();
   }
 };

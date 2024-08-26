@@ -2,6 +2,85 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.32](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.31...v0.0.32) (2024-08-26)
+
+### [0.0.31](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.30...v0.0.31) (2024-08-26)
+
+### [0.0.30](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.29...v0.0.30) (2024-08-26)
+
+### [0.0.29](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.28...v0.0.29) (2024-08-26)
+
+### [0.0.28](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.27...v0.0.28) (2024-08-26)
+
+
+### Features
+
+* remote seed management ([3bb8ad5](https://github.com/Datalayer-Storage/dig-cli/commit/3bb8ad520c6c560a84e80bc596015412da741062))
+
+### [0.0.27](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.26...v0.0.27) (2024-08-26)
+
+
+### Features
+
+* add peer timeout logic ([fb4e209](https://github.com/Datalayer-Storage/dig-cli/commit/fb4e209e2ecef812a94b902ef652400f0e005f19))
+
+### [0.0.26](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.25...v0.0.26) (2024-08-26)
+
+
+### Features
+
+* add peer timeout logic ([48c4d4f](https://github.com/Datalayer-Storage/dig-cli/commit/48c4d4f7fc1a85883ae590e51f512b215267932c))
+
+### [0.0.25](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.24...v0.0.25) (2024-08-26)
+
+
+### Features
+
+* add peer timeout logic ([f1865f2](https://github.com/Datalayer-Storage/dig-cli/commit/f1865f24a020e162bd13f1980e1db81cb0679be4))
+
+### [0.0.24](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.23...v0.0.24) (2024-08-26)
+
+
+### Features
+
+* add keyring ([672a57f](https://github.com/Datalayer-Storage/dig-cli/commit/672a57ff0210c984debfc6731c5d015c638e62ad))
+
+### [0.0.23](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.22...v0.0.23) (2024-08-26)
+
+
+### Features
+
+* add keyring ([7a1e912](https://github.com/Datalayer-Storage/dig-cli/commit/7a1e912faf577c3f253c843a2414b1fde874575d))
+
+### [0.0.22](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.21...v0.0.22) (2024-08-26)
+
+
+### Features
+
+* add keyring ([a9ec64c](https://github.com/Datalayer-Storage/dig-cli/commit/a9ec64ccc99a068f5f52802eaaf688ced40f1d20))
+
+### [0.0.21](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.20...v0.0.21) (2024-08-26)
+
+
+### Features
+
+* add keyring ([cd46f3b](https://github.com/Datalayer-Storage/dig-cli/commit/cd46f3b754cf528b2c6a0a6d03ad1d8e780adef7))
+
+### [0.0.20](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.19...v0.0.20) (2024-08-26)
+
+### [0.0.19](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.18...v0.0.19) (2024-08-25)
+
+### [0.0.18](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.17...v0.0.18) (2024-08-25)
+
+### [0.0.17](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.16...v0.0.17) (2024-08-25)
+
+### [0.0.16](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.15...v0.0.16) (2024-08-25)
+
+
+### Bug Fixes
+
+* upload multibar ([309d322](https://github.com/Datalayer-Storage/dig-cli/commit/309d3220bfed8e18fd02f5c79847cf4e87b9fad3))
+
 ### [0.0.15](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.14...v0.0.15) (2024-08-25)
 
 

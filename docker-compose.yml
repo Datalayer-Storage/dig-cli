@@ -24,10 +24,10 @@ services:
     ports:
       - "4159:4159"
     volumes:
-      - ~/.dig/stores:/.dig
+      - ~/.dig/remote:/.dig
     environment:
-      - DIG_USERNAME=1
-      - DIG_PASSWORD=1
+      - DIG_USERNAME=DCdgu7um1ieDkRumr6UO
+      - DIG_PASSWORD=HOzi7xR9xWps1mVY7JUe
       - DIG_FOLDER_PATH=/.dig
       - PORT=4159
       - REMOTE_NODE=1
@@ -39,20 +39,10 @@ services:
     ports:
       - "80:80"
     volumes:
-      - ~/.dig/stores:/.dig
+      - ~/.dig/remote:/.dig
     environment:
       - DIG_FOLDER_PATH=/.dig
       - PORT=80
-      - REMOTE_NODE=1
-
-  sync-service:
-    image: michaeltaylor3d/dig-sync-service:latest
-   # depends_on:
-   #   - chia-nodes
-    volumes:
-      - ~/.dig/stores:/.dig
-    environment:
-      - DIG_FOLDER_PATH=/.dig
       - REMOTE_NODE=1
 
 networks:

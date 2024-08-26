@@ -6,11 +6,17 @@ import { serializeStoreInfo, deserializeStoreInfo } from "./serialization";
 
 // Define a file path to store the cached data
 export const getCacheFilePath = (launcherId: string): string => {
-  return path.join(DIG_FOLDER_PATH, `${launcherId}.json`);
+  return path.join(DIG_FOLDER_PATH, "stores", `${launcherId}.json`);
 };
 
 // Function to get cached store info
-export const getCachedStoreInfo = (launcherId: string): { latestInfo: DataStoreInfo, latestHeight: number, latestHash: Buffer } | null => {
+export const getCachedStoreInfo = (
+  launcherId: string
+): {
+  latestInfo: DataStoreInfo;
+  latestHeight: number;
+  latestHash: Buffer;
+} | null => {
   const cacheFilePath = getCacheFilePath(launcherId);
 
   // If the cache file doesn't exist, return null
@@ -23,17 +29,20 @@ export const getCachedStoreInfo = (launcherId: string): { latestInfo: DataStoreI
 };
 
 // Function to cache the store info
-export const cacheStoreInfo = (launcherId: string, storeInfo: DataStoreInfo, latestHeight: number, latestHash: Buffer): void => {
+export const cacheStoreInfo = (
+  launcherId: string,
+  storeInfo: DataStoreInfo,
+  latestHeight: number,
+  latestHash: Buffer
+): void => {
   const cacheFilePath = getCacheFilePath(launcherId);
 
   // Serialize the store info and write it to the cache file
   const serializedData = JSON.stringify({
     latestInfo: serializeStoreInfo(storeInfo),
     latestHeight,
-    latestHash: latestHash.toString("base64")
+    latestHash: latestHash.toString("base64"),
   });
 
   fs.writeFileSync(cacheFilePath, serializedData);
 };
-
-

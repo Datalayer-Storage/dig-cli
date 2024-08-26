@@ -4,7 +4,7 @@ FROM ubuntu:latest
 # Set the working directory inside the container
 WORKDIR /app
 
-# Install curl, build-essential, pkg-config, and other dependencies
+# Install curl, build-essential, and other dependencies
 RUN apt-get update && apt-get install -y \
     curl \
     build-essential \
@@ -24,11 +24,8 @@ COPY . .
 RUN npm install
 RUN npm i datalayer-driver-linux-x64-gnu
 
-# Rebuild the keytar module for the current environment
-RUN npm rebuild keytar --build-from-source
+# Rebuild any native modules for the current environment
+RUN npm rebuild
 
-# Expose the port the app runs on
-EXPOSE 4159
-
-# Run npm start command when the container launches
+# Run the application
 CMD ["npm", "run", "start-propagation-server"]

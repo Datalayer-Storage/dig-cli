@@ -180,6 +180,7 @@ export const pullFilesFromNetwork = async (
           clearOnComplete: false,
           hideCursor: true,
           format: "Syncing Store | {bar} | {percentage}%",
+          noTTYOutput: true
         },
         Presets.shades_classic
       );

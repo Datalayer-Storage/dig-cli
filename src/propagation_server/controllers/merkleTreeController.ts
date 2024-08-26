@@ -27,6 +27,7 @@ export const headStore = async (req: Request, res: Response): Promise<void> => {
 
     const { username, password } = await getCredentials();
 
+    console.log("Provided credentials:", providedUsername, providedPassword);
     if (providedUsername !== username || providedPassword !== password) {
       throw new HttpError(401, "Unauthorized");
     }
@@ -39,7 +40,7 @@ export const headStore = async (req: Request, res: Response): Promise<void> => {
       throw new HttpError(400, "Missing path parameters");
     }
 
-    const manifestPath = path.join(digFolderPath, storeId, "manifest.dat");
+    const manifestPath = path.join(digFolderPath, "stores", storeId, "manifest.dat");
 
     if (!fs.existsSync(manifestPath)) {
       res
@@ -103,7 +104,7 @@ export const getStore = async (req: Request, res: Response) => {
     }
 
     // Construct the full file path
-    const fullPath = path.join(digFolderPath, storeId, relativeFilePath);
+    const fullPath = path.join(digFolderPath, "stores", storeId, relativeFilePath);
 
     // Check if the file exists
     if (!fs.existsSync(fullPath)) {
@@ -134,8 +135,10 @@ export const getStore = async (req: Request, res: Response) => {
 export const putStore = async (req: Request, res: Response): Promise<void> => {
   try {
     console.log("Received file upload request.");
+
     const authHeader = req.headers.authorization || "";
     if (!authHeader.startsWith("Basic ")) {
+      console.log("Authorization header missing or incorrect format.");
       throw new HttpError(401, "Unauthorized");
     }
 
@@ -146,16 +149,22 @@ export const putStore = async (req: Request, res: Response): Promise<void> => {
       .toString("utf-8")
       .split(":");
 
+    console.log("Authorization credentials extracted.");
+
     const { username, password } = await getCredentials();
 
     if (providedUsername !== username || providedPassword !== password) {
+      console.log("Provided credentials do not match stored credentials.");
       throw new HttpError(401, "Unauthorized");
     }
 
     const { storeId } = req.params;
     if (!storeId) {
+      console.log("storeId is missing in the path parameters.");
       throw new HttpError(400, "Missing storeId in path parameters.");
     }
+
+    console.log(`storeId received: ${storeId}`);
 
     // These parameters are expected to be in the query or headers, not the body for a file upload
     const keyOwnershipSig = req.headers["x-key-ownership-sig"] as string;
@@ -164,12 +173,16 @@ export const putStore = async (req: Request, res: Response): Promise<void> => {
     const filename = decodeURIComponent(req.path);
 
     if (!keyOwnershipSig || !publicKey || !nonce || !filename) {
+      console.log("One or more required headers are missing.");
       throw new HttpError(400, "Missing required headers.");
     }
+
+    console.log(`Received headers: keyOwnershipSig=${keyOwnershipSig}, publicKey=${publicKey}, nonce=${nonce}, filename=${filename}`);
 
     let fileKey = path.join(filename);
 
     // Verify key ownership signature
+    console.log("Verifying key ownership signature...");
     const isSignatureValid = await verifyKeyOwnershipSignature(
       nonce,
       keyOwnershipSig,
@@ -177,32 +190,42 @@ export const putStore = async (req: Request, res: Response): Promise<void> => {
     );
 
     if (!isSignatureValid) {
+      console.log("Key ownership signature is invalid.");
       throw new HttpError(401, "Invalid key ownership signature.");
     }
 
+    console.log("Key ownership signature verified successfully.");
+
     // Check store ownership
+    console.log("Checking store ownership...");
     const isOwner = await hasMetadataWritePermissions(
       Buffer.from(storeId, "hex"),
       Buffer.from(publicKey, "hex")
     );
 
     if (!isOwner) {
+      console.log("User does not have write access to this store.");
       throw new HttpError(403, "You do not have write access to this store.");
     }
 
+    console.log("User has write access to the store.");
+
     // Construct the full path where the file should be stored
-    const fullPath = path.join(digFolderPath, fileKey);
+    const fullPath = path.join(digFolderPath, "stores", fileKey);
     console.log("Saving file to:", fullPath);
 
     // Ensure the directory exists
     const directory = path.dirname(fullPath);
     if (!fs.existsSync(directory)) {
+      console.log("Directory does not exist, creating:", directory);
       fs.mkdirSync(directory, { recursive: true });
     }
 
     // Stream the file to the destination
+    console.log("Streaming file to destination...");
     await streamPipeline(req, fs.createWriteStream(fullPath));
 
+    console.log("File uploaded successfully.");
     res.status(200).json({ message: "File uploaded successfully." });
   } catch (error: any) {
     console.error("Error in putStore controller:", error);

@@ -1,13 +1,29 @@
-import { lookupService } from 'dns';
+import superagent from 'superagent';
 
-export const getPublicIpAddress = (): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    lookupService('resolver1.opendns.com', 80, (err, hostname) => {
-      if (err) {
-        return reject(err);
+const MAX_RETRIES = 5;
+const RETRY_DELAY = 2000; // in milliseconds
+
+export const getPublicIpAddress = async (): Promise<string | undefined> => {
+  let attempt = 0;
+
+  while (attempt < MAX_RETRIES) {
+    try {
+      const response = await superagent.get('https://api.datalayer.storage/user/v1/get_user_ip');
+      if (response.body && response.body.success) {
+        console.log('Public IP address:', response.body);
+        return response.body.ip_address;
+      } else {
+        throw new Error('Failed to retrieve public IP address');
       }
-      const publicIp = hostname.split('.').slice(-4).join('.');
-      resolve(publicIp);
-    });
-  });
-}
+    } catch (error: any) {
+      attempt++;
+      console.error(`Error fetching public IP address (Attempt ${attempt}):`, error.message);
+
+      if (attempt >= MAX_RETRIES) {
+        throw new Error('Could not retrieve public IP address after several attempts');
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY));
+    }
+  }
+};

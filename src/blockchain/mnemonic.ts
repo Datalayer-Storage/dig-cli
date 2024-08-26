@@ -1,46 +1,56 @@
-import * as keytar from "keytar";
 import * as bip39 from "bip39";
+import { NconfManager } from '../utils/nconfManager';
+import { askForMnemonicAction, askForMnemonicInput } from "../prompts";
 import WalletRpc from "chia-wallet";
 // @ts-ignore
 import { getChiaRoot } from "chia-root-resolver";
 import { getChiaConfig } from "chia-config-loader";
-import { askForMnemonicAction, askForMnemonicInput } from "../prompts";
+import { encryptData, decryptData, EncryptedData } from "../utils/encryption";
 
-const SERVICE_NAME = "dig-datalayer";
-const ACCOUNT_NAME = "mnemonic-seed";
+const KEYRING_FILE = "keys/keyring.json";
 
-/**
- * Retrieves the mnemonic seed phrase from the OS keychain.
- *
- * @returns {Promise<string | null>} The mnemonic seed phrase, or null if not found.
- */
-export async function getMnemonic(): Promise<string | null> {
-  return keytar.getPassword(SERVICE_NAME, ACCOUNT_NAME);
-}
+export const readMnemonicFromKeyring = async (): Promise<string | null> => {
+  const nconfManager = new NconfManager(KEYRING_FILE);
+  if (await nconfManager.configExists()) {
+    const encryptedData: EncryptedData | null = await nconfManager.getConfigValue("keyring");
 
-/**
- * Generates a new 24-word mnemonic seed phrase, stores it in the keychain, and returns it.
- *
- * @returns {Promise<string>} The newly generated mnemonic seed phrase.
- */
-export async function createMnemonic(): Promise<string> {
-  const mnemonic = bip39.generateMnemonic(256); // 256 bits generates a 24-word mnemonic
+    if (encryptedData) {
+      return decryptData(encryptedData);
+    }
+  }
+  return null;
+};
+
+export const writeMnemonicToKeyring = async (mnemonic: string): Promise<void> => {
+  const nconfManager = new NconfManager(KEYRING_FILE);
+  const encryptedData = encryptData(mnemonic);
+  await nconfManager.setConfigValue("keyring", encryptedData);
+  console.log("Mnemonic seed phrase securely stored in keyring.");
+};
+
+export const deleteMnemonicFromKeyring = async (): Promise<boolean> => {
+  const nconfManager = new NconfManager(KEYRING_FILE);
+  if (await nconfManager.configExists()) {
+    await nconfManager.deleteConfigValue("keyring");
+    console.log("Mnemonic seed phrase successfully deleted from keyring.");
+    return true;
+  }
+  console.log("No mnemonic seed phrase found to delete in keyring.");
+  return false;
+};
+
+export const getMnemonic = async (): Promise<string | null> => {
+  return await readMnemonicFromKeyring();
+};
+
+export const createMnemonic = async (): Promise<string> => {
+  const mnemonic = bip39.generateMnemonic(256);
   console.log("Generated new 24-word mnemonic seed phrase:", mnemonic);
-
-  await keytar.setPassword(SERVICE_NAME, ACCOUNT_NAME, mnemonic);
-  console.log("Mnemonic seed phrase securely stored.");
-
+  await writeMnemonicToKeyring(mnemonic);
   return mnemonic;
-}
+};
 
-/**
- * Imports a mnemonic seed phrase, validates it, and stores it in the keychain.
- * If a seed is provided as an argument, it will be used directly. Otherwise, it will prompt the user to input one.
- *
- * @param {string | undefined} seed - The mnemonic seed phrase provided as an argument, or undefined.
- * @returns {Promise<string>} The validated mnemonic seed phrase.
- */
-export async function importMnemonic(seed: string | undefined): Promise<string> {
+export const importMnemonic = async (seed: string | undefined): Promise<string> => {
   let mnemonic: string;
 
   if (seed) {
@@ -54,32 +64,21 @@ export async function importMnemonic(seed: string | undefined): Promise<string> 
     throw new Error("Provided mnemonic is invalid.");
   }
 
-  await keytar.setPassword(SERVICE_NAME, ACCOUNT_NAME, mnemonic);
+  await writeMnemonicToKeyring(mnemonic);
   console.log("Mnemonic seed phrase securely stored.");
-
   return mnemonic;
-}
+};
 
-/**
- * Retrieves the mnemonic seed phrase from the OS keychain or environment variable.
- * If the seed doesn't exist and the environment variable is not set, prompts the user to provide, generate, or import a new one.
- * Stores the seed in the keychain if a new one is generated or imported.
- *
- * @returns {Promise<string>} The mnemonic seed phrase.
- */
-export async function getOrCreateMnemonic(): Promise<string> {
-  // Check if the MNEMONIC environment variable is set
+export const getOrCreateMnemonic = async (): Promise<string> => {
   let mnemonic: string | null | undefined = process.env.CHIA_MNEMONIC;
 
   if (mnemonic) {
     console.log("Using mnemonic from environment variable.");
   } else {
-    // If not, retrieve the mnemonic from the keychain
     mnemonic = await getMnemonic();
   }
 
   if (!mnemonic) {
-    // If still not available, prompt the user
     const { action } = await askForMnemonicAction();
 
     if (action === "Provide") {
@@ -95,44 +94,13 @@ export async function getOrCreateMnemonic(): Promise<string> {
     if (!mnemonic) {
       throw new Error("Mnemonic seed phrase is required.");
     }
-
-    // Store the mnemonic in the keychain
-    await keytar.setPassword(SERVICE_NAME, ACCOUNT_NAME, mnemonic);
-    console.log("Mnemonic seed phrase securely stored.");
   }
 
   return mnemonic;
-}
+};
 
-/**
- * Deletes the mnemonic seed phrase from the OS keychain.
- *
- * @returns {Promise<boolean>} Returns true if the deletion was successful, false otherwise.
- */
-export async function deleteMnemonic(): Promise<boolean> {
-  try {
-    const result = await keytar.deletePassword(SERVICE_NAME, ACCOUNT_NAME);
-    if (result) {
-      console.log(
-        "Mnemonic seed phrase successfully deleted from the keychain."
-      );
-    } else {
-      console.log("No mnemonic seed phrase found to delete.");
-    }
-    return result;
-  } catch (error) {
-    console.error(
-      "An error occurred while deleting the mnemonic seed phrase:",
-      error
-    );
-    return false;
-  }
-}
+export const deleteMnemonic = deleteMnemonicFromKeyring;
 
-/**
- * Imports the mnemonic seed phrase from the Chia client and it active wallet.
- * @returns {Promise<string>} The mnemonic seed phrase.
- */
 export const importChiaMnemonic = async (): Promise<string> => {
   const chiaRoot = getChiaRoot();
   const certificateFolderPath = `${chiaRoot}/config/ssl`;
@@ -162,6 +130,6 @@ export const importChiaMnemonic = async (): Promise<string> => {
   }
 
   const mnemonic = privateKeyInfo?.private_key.seed;
-
+  await writeMnemonicToKeyring(mnemonic);
   return mnemonic;
 };

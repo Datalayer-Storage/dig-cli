@@ -3,6 +3,7 @@ import * as path from "path";
 import { DigConfig } from "../types";
 import { Config } from "../types";
 import inquirer from "inquirer";
+import os from "os";
 
 export const NETWORK_AGG_SIG_DATA =
   "ccd5bb71183532bff220ba46c268991a3ff07eb358e8255a65c30a2dce0e5fbb";
@@ -13,11 +14,17 @@ export const MIN_HEIGHT_HEADER_HASH =
 
 export const DIG_FOLDER_PATH =
   process.env.DIG_FOLDER_PATH || path.join(process.cwd(), ".dig");
+
+export const STORE_PATH = path.join(DIG_FOLDER_PATH, "stores");
+
+export const USER_DIR_PATH = path.join(os.homedir(), ".dig");
 export const CONFIG_FILE_PATH = path.join(DIG_FOLDER_PATH, "dig.config.json");
+
 export const getManifestFilePath = (storeId: string): string =>
-  path.join(DIG_FOLDER_PATH, storeId, "manifest.dat");
+  path.join(STORE_PATH, storeId, "manifest.dat");
+
 export const getHeightFilePath = (storeId: string): string =>
-  path.join(DIG_FOLDER_PATH, storeId, "height.dat");
+  path.join(STORE_PATH, storeId, "height.dat");
 
 export const createInitialConfig = (): void => {
   const initialConfig = { deploy_dir: "./dist", remote: "" };

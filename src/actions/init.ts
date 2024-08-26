@@ -6,6 +6,7 @@ import {
 } from "../DataIntegrityTree";
 import {
   DIG_FOLDER_PATH,
+  STORE_PATH,
   MIN_HEIGHT,
   getHeightFilePath,
   setActiveStore,
@@ -38,7 +39,7 @@ export const init = async (
 
     const options: DataIntegrityTreeOptions = {
       storageMode: "local",
-      storeDir: DIG_FOLDER_PATH,
+      storeDir: STORE_PATH,
     };
 
     new DataIntegrityTree(storeId, options);

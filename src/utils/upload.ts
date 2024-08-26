@@ -150,6 +150,7 @@ export const uploadDirectory = async (
       clearOnComplete: false,
       hideCursor: true,
       format: "{bar} | {percentage}% | {name}",
+      noTTYOutput: true
     },
     Presets.shades_classic
   );

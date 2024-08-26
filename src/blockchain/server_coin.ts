@@ -10,14 +10,17 @@ const stringToUint8Array = (str: String) => {
 
 const getWallet = async (peer: Peer): Promise<Wallet> => {
   const mnemonic = await getMnemonic();
+
   if (!mnemonic) {
     throw new Error("Mnemonic not found");
   }
-  return Wallet.initialSync(
+
+  const wallet = Wallet.initialSync(
     peer,
     mnemonic,
     Buffer.from(NETWORK_AGG_SIG_DATA, "hex")
   );
+  return wallet;
 };
 
 export const createServerCoin = async (
@@ -25,16 +28,20 @@ export const createServerCoin = async (
   urls: string[],
   amount: number = 300_000_000
 ) => {
-  const peer = await getServerCoinPeer();
-  const wallet = await getWallet(peer);
-  console.log("Creating server coin", launcherId, urls, amount);
+  try {
+    const peer = await getServerCoinPeer();
+    const wallet = await getWallet(peer);
 
-  await wallet.createServerCoin(
-    Buffer.from(launcherId, "hex"),
-    amount,
-    300_000_000,
-    urls
-  );
+    await wallet.createServerCoin(
+      Buffer.from(launcherId, "hex"),
+      amount,
+      300_000_000,
+      urls
+    );
+  } catch (error: any) {
+    console.trace(error);
+    throw new Error("Failed to create server coin: " + error.message);
+  }
 };
 
 export const deleteServerCoin = async (storeId: string, coinId: string) => {
@@ -83,15 +90,11 @@ export const getServerCoinsByLauncherId = async (launcherId: String) => {
     serverCoins.push(next);
   }
 
-  const wallet = await getWallet(peer);
-
   const serverInfo = await Promise.all(
     serverCoins.map(async (coinRecord) => {
-      const ours = await wallet.hasPuzzleHash(coinRecord.p2PuzzleHash);
       return {
         amount: coinRecord.coin.amount,
         launcher_id: launcherId,
-        ours,
         coin_id: Buffer.from(toCoinId(coinRecord.coin)).toString("hex"),
         urls: coinRecord.memoUrls,
       };
@@ -105,10 +108,16 @@ export const doesHostExistInMirrors = async (
   launcherId: string,
   host: string
 ) => {
-  const mirrors = await getServerCoinsByLauncherId(launcherId);
+  try {
+    const mirrors = await getServerCoinsByLauncherId(launcherId);
 
-  if (process.env.DIG_DEBUG === "1") {
-    console.log("Mirrors", mirrors);
+    if (process.env.DIG_DEBUG === "1") {
+      console.log("Mirrors", mirrors);
+    }
+    return mirrors.some((server) => server.urls.some((url) => url === host));
+  } catch (error: any) {
+    throw new Error(
+      "Failed to check if host exists in mirrors: " + error.message
+    );
   }
-  return mirrors.some((server) => server.urls.some((url) => url === host));
 };

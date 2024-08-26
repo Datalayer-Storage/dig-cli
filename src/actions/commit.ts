@@ -12,6 +12,7 @@ import {
   getManifestFilePath,
   loadDigConfig,
   getActiveStoreId,
+  STORE_PATH
 } from "../utils/config";
 import { waitForConfirmation } from "../blockchain/coins";
 import { getPeer } from "../blockchain/peer";
@@ -48,7 +49,7 @@ export const commit = async (): Promise<void> => {
 
     const datalayer = new DataIntegrityTree(storeId.toString("hex"), {
       storageMode: "local",
-      storeDir: DIG_FOLDER_PATH,
+      storeDir: STORE_PATH,
       disableInitialize: true,
     });
 
@@ -105,6 +106,8 @@ export const commit = async (): Promise<void> => {
     console.log("Commit successful");
   } catch (error: any) {
     console.error("Failed to commit:", error.message);
+  } finally {
+    process.exit();
   }
 };
 

@@ -1,4 +1,9 @@
-import { getOrCreateMnemonic, deleteMnemonic, getMnemonic, importMnemonic } from "../blockchain/mnemonic";
+import {
+  getOrCreateMnemonic,
+  deleteMnemonic,
+  getMnemonic,
+  importMnemonic,
+} from "../blockchain/mnemonic";
 import {
   commit,
   push,
@@ -14,11 +19,16 @@ import {
   listKeys,
   getRoot,
   getKey
+  syncRemoteSeed as _syncRemoteSeed,
+  setRemoteSeed as _setRemoteSeed,
+  generateEntropyValue
 } from "../actions";
-import { CreateStoreUserInputs } from '../types';
-import { startPreviewServer } from '../content_server/server';
+import { CreateStoreUserInputs } from "../types";
+import { logout } from "../actions/logout";
+import { startPreviewServer } from "../content_server/server";
 import { checkStoreWritePermissions } from "../actions";
 import { getActiveStoreId } from "../utils/config";
+import { generateHighEntropyValue } from "../utils/credentialsUtils";
 
 // Command handlers
 export const handlers = {
@@ -51,17 +61,23 @@ export const handlers = {
     console.log("Store upsert executed");
   },
   removeStore: async (writer?: string, oracle_fee?: number, admin?: string) => {
-   // await removeStore(writer, oracle_fee, admin);
+    // await removeStore(writer, oracle_fee, admin);
     console.log("Store remove executed");
   },
   setRemote: async (peer: string) => {
     await setRemote(peer);
   },
+  syncRemoteSeed: async () => {
+    await _syncRemoteSeed();
+  },
   setRemoteSeed: async (seed: string) => {
-    await setRemote(seed);
+    await _setRemoteSeed(seed);
   },
   validateStore: async () => {
     await validate();
+  },
+  generateCreds: async () => {
+    await generateEntropyValue();
   },
   manageStore: async (argv: {action: string} & any) => {
     try {
@@ -128,5 +144,5 @@ export const handlers = {
   },
   logout: async () => {
     await logout();
-  }
+  },
 };

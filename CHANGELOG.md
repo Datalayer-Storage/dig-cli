@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.24](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.23...v0.0.24) (2024-08-26)
+
+
+### Features
+
+* add keyring ([672a57f](https://github.com/Datalayer-Storage/dig-cli/commit/672a57ff0210c984debfc6731c5d015c638e62ad))
+
 ### [0.0.23](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.22...v0.0.23) (2024-08-26)
 
 

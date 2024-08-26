@@ -1,12 +1,10 @@
 import * as fs from "fs";
 import * as path from "path";
 import { Tls } from "chia-server-coin";
-import os from "os";
+import { USER_DIR_PATH }  from './config';
 
 export const getOrCreateSSLCerts = () => {
-  // Path to the SSL certificates in the user's home directory
-  const homeDir = os.homedir();
-  const sslDir = path.join(homeDir, ".dig", "ssl");
+  const sslDir = path.join(USER_DIR_PATH, "ssl");
   const certPath = path.join(sslDir, "client.cert");
   const keyPath = path.join(sslDir, "client.key");
 

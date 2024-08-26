@@ -2,14 +2,15 @@ import nconf from 'nconf';
 import fs from 'fs-extra';
 import path from 'path';
 import os from 'os';
+import { USER_DIR_PATH }  from './config';
 
-const DIG_FOLDER_PATH = process.env.DIG_FOLDER_PATH || path.join(os.homedir(), ".dig");
+const CONF_FOLDER_PATH = process.env.DIG_FOLDER_PATH || USER_DIR_PATH;
 
 export class NconfManager {
   private configFilePath: string;
 
   constructor(relativePath: string) {
-    this.configFilePath = path.join(DIG_FOLDER_PATH, relativePath);
+    this.configFilePath = path.join(CONF_FOLDER_PATH, relativePath);
     this.initializeConfig();
   }
 

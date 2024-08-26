@@ -1,4 +1,4 @@
-*Introduction To DIG and the DIG Network
+# Introduction To DIG and the DIG Network
 
 The DIG Network offers a robust solution for ensuring data integrity and censorship resistance by leveraging decentralized technology. When you add your data to DIG, it is encoded and served from a Merkle tree, with the Merkle root securely stored on the blockchain by the data owner. This structure guarantees that the data can be verified by anyone, ensuring that what they consume is exactly what was intended, free from manipulation or tampering.
 

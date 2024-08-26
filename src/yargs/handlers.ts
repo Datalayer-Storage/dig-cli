@@ -19,10 +19,9 @@ import {
 } from "../actions";
 import { CreateStoreUserInputs } from "../types";
 import { logout } from "../actions/logout";
-import { startPreviewServer } from "../content_server/server";
+import { startContentServer } from "../content_server/server";
 import { checkStoreWritePermissions } from "../actions";
 import { getActiveStoreId } from "../utils/config";
-import { generateHighEntropyValue } from "../utils/credentialsUtils";
 
 // Command handlers
 export const handlers = {
@@ -45,7 +44,7 @@ export const handlers = {
   },
   server: async () => {
     await getActiveStoreId();
-    await startPreviewServer();
+    await startContentServer();
   },
   clone: async (storeId: string) => {
     await clone(storeId);

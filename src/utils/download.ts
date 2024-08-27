@@ -66,7 +66,7 @@ const downloadFileFromUrls = async (
 
               writeStream.on("finish", resolve);
               writeStream.on("error", (error) => {
-                console.trace("Write stream error:", error);
+                console.error("Write stream error:", error);
                 reject(error);
               });
             } else if (
@@ -82,14 +82,14 @@ const downloadFileFromUrls = async (
               )
                 .then(resolve)
                 .catch((error) => {
-                  console.trace("Redirect error:", error);
+                  console.error("Redirect error:", error);
                   reject(error);
                 });
             } else {
               const error = new Error(
                 `Request failed with status code ${response.statusCode}`
               );
-              console.trace("Request error:", error);
+              console.error("Request error:", error);
               reject(error);
             }
           });
@@ -99,7 +99,7 @@ const downloadFileFromUrls = async (
               console.warn(`Connection refused to ${url}. Trying next peer if available...`);
               reject(error);
             } else {
-              console.trace("Request error:", error);
+              console.error("Request error:", error);
               reject(error);
             }
           });
@@ -108,7 +108,7 @@ const downloadFileFromUrls = async (
 
         return; // Exit if successful
       } catch (error: any) {
-        console.trace(
+        console.warn(
           `Download attempt ${attempt + 1} from ${url} failed: ${error.message}`
         );
       }
@@ -216,7 +216,6 @@ export const pullFilesFromNetwork = async (
       // Verify the root hash in the .dat file
       if (datFileContent.root !== rootHash) {
         const error = new Error("Root hash mismatch");
-        console.trace(error);
         throw error;
       }
 

@@ -164,6 +164,33 @@ export function remoteCommand(yargs: Argv<{}>) {
       async () => {
         await handlers.syncRemoteSeed();
       }
+    )
+    .command(
+      "remote store subscribe <storeId>",
+      "Subscribe to a store on the remote",
+      // @ts-ignore
+      (yargs: Argv<{ seed: string }>) => {
+        return yargs.positional("storeId", {
+          type: "string",
+          describe: "The storeId to subscribe to",
+        });
+      },
+      async (argv: { storeId: string }) => {
+        await handlers.subscribeToStore(argv.storeId);
+      }
+    ).command(
+      "remote store unsubscribe <storeId>",
+      "unsubscribe and mirror a store on the remote.",
+      // @ts-ignore
+      (yargs: Argv<{ seed: string }>) => {
+        return yargs.positional("storeId", {
+          type: "string",
+          describe: "The storeId to unsubscribe from",
+        });
+      },
+      async (argv: { storeId: string }) => {
+        await handlers.unsubscribeToStore(argv.storeId);
+      }
     );
 }
 

@@ -33,7 +33,7 @@ const serverCert = fs.readFileSync(serverCertPath);
 const serverKey = fs.readFileSync(serverKeyPath);
 
 const app = express();
-const PORT = process.env.PORT || 4159;
+const PORT = Number(process.env.PORT) || 4159;
 
 // Apply store routes
 app.use(verifyCredentials);

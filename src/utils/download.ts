@@ -7,9 +7,11 @@ import { getOrCreateSSLCerts } from "./ssl";
 import { getFilePathFromSha256 } from "./hashUtils";
 import { getServerCoinsByLauncherId } from "../blockchain/server_coin";
 import { getRootHistory } from "../blockchain/datastore";
+import { NconfManager } from "./nconfManager";
 
 // Retrieve or generate SSL certificates
 const { certPath, keyPath } = getOrCreateSSLCerts();
+const nconfManager = new NconfManager("config.json");
 
 // Function to download a single file using a list of URLs, with retry and less aggressive exponential backoff
 const downloadFileFromUrls = async (
@@ -92,9 +94,14 @@ const downloadFileFromUrls = async (
             }
           });
 
-          request.on("error", (error) => {
-            console.trace("Request error:", error);
-            reject(error);
+          request.on("error", (error: any) => {
+            if (error.code === 'ECONNREFUSED') {
+              console.warn(`Connection refused to ${url}. Trying next peer if available...`);
+              reject(error);
+            } else {
+              console.trace("Request error:", error);
+              reject(error);
+            }
           });
           request.end();
         });
@@ -117,10 +124,9 @@ const downloadFileFromUrls = async (
     }
   }
 
-  const error = new Error(`All URLs failed for ${filePath}. Aborting.`);
-  console.trace(error);
-  throw error;
+  console.error(`All URLs failed for ${filePath}. Aborting.`);
 };
+
 
 // Function to download the height.dat file from the remote store
 const downloadHeightFile = async (
@@ -133,7 +139,7 @@ const downloadHeightFile = async (
   const heightFileUrls = digPeers.map(
     (digPeer) => `https://${digPeer}:4159/${storeId}/height.dat`
   );
-  
+
   await downloadFileFromUrls(heightFileUrls, heightFilePath, forceDownload);
 };
 
@@ -146,7 +152,12 @@ export const pullFilesFromNetwork = async (
 ): Promise<void> => {
   try {
     const serverCoins = await getServerCoinsByLauncherId(storeId);
-    const digPeers = serverCoins.flatMap((coin) => coin.urls);
+
+    const publicIp: string | null | undefined = await nconfManager.getConfigValue('publicIp');
+    const digPeers = serverCoins
+      .flatMap((coin) => coin.urls)
+      .filter((peer) => peer !== publicIp); // Remove self from the list of peers
+
     const rootHistory = await getRootHistory(Buffer.from(storeId, "hex"));
 
     if (rootHistory.length === 0) {
@@ -180,7 +191,7 @@ export const pullFilesFromNetwork = async (
           clearOnComplete: false,
           hideCursor: true,
           format: "Syncing Store | {bar} | {percentage}%",
-          noTTYOutput: true
+          noTTYOutput: true,
         },
         Presets.shades_classic
       );
@@ -224,7 +235,10 @@ export const pullFilesFromNetwork = async (
         const isInDataDir = filePath.startsWith(path.join(storeDir, "data"));
         const fileUrls = digPeers.map(
           (digPeer) =>
-            `https://${digPeer}:4159/${storeId}/${path.relative(storeDir, filePath)}`
+            `https://${digPeer}:4159/${storeId}/${path.relative(
+              storeDir,
+              filePath
+            )}`
         );
 
         await downloadFileFromUrls(
@@ -239,6 +253,9 @@ export const pullFilesFromNetwork = async (
 
       // Append the processed hash to the local manifest.dat file
       const localManifestPath = path.join(storeDir, "manifest.dat");
+      if (!fs.existsSync(localManifestPath)) {
+        fs.writeFileSync(localManifestPath, "");
+      }
       fs.appendFileSync(localManifestPath, `${rootHash}\n`);
     }
 

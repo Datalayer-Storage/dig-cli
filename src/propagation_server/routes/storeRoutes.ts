@@ -7,10 +7,13 @@ import {
 
 import { setMnemonic } from "../controllers/configController";
 import { verifyMnemonic } from "../middleware/verifyMnemonic";
+import { subscribeToStore, unsubscribeToStore } from "../controllers/storeController";
 
 
 const router = express.Router();
 
+router.post("/unsubscribe", express.json(), unsubscribeToStore);
+router.post("/subscribe", express.json(), subscribeToStore);
 router.post("/mnemonic", express.json(), setMnemonic);
 
 // Route to handle HEAD, GET, and PUT requests for /stores/:storeId

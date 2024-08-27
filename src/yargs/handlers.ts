@@ -15,13 +15,16 @@ import {
   login,
   syncRemoteSeed as _syncRemoteSeed,
   setRemoteSeed as _setRemoteSeed,
-  generateEntropyValue
+  generateEntropyValue,
+  subscribeToStore as _subscribeToStore,
+  unsubscribeToStore
 } from "../actions";
 import { CreateStoreUserInputs } from "../types";
 import { logout } from "../actions/logout";
 import { startContentServer } from "../content_server/server";
 import { checkStoreWritePermissions } from "../actions";
 import { getActiveStoreId } from "../utils/config";
+
 
 // Command handlers
 export const handlers = {
@@ -72,6 +75,12 @@ export const handlers = {
   },
   generateCreds: async () => {
     await generateEntropyValue();
+  },
+  subscribeToStore: async (storeId: string) => {
+    await _subscribeToStore(storeId);
+  },
+  unsubscribeToStore: async (storeId: string) => {
+    await unsubscribeToStore(storeId);
   },
   manageStore: async (action: string) => {
     switch (action) {

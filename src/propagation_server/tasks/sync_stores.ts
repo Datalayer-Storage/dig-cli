@@ -57,6 +57,13 @@ const isStoreUpToDate = async (storeId: string): Promise<boolean> => {
   console.log(`Checking if store ${storeId} is up to date...`);
 
   const rootHistory = await getRootHistory(Buffer.from(storeId, "hex"));
+
+  const manifestFilePath = getManifestFilePath(storeId);
+  if (!fs.existsSync(manifestFilePath)) {
+    console.log(`Manifest file not found for store ${storeId}.`);
+    return false;
+  }
+  
   const manifest = fs
     .readFileSync(getManifestFilePath(storeId), "utf-8")
     .trim();

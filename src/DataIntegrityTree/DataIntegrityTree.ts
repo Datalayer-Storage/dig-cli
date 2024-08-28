@@ -6,6 +6,7 @@ import { SHA256 } from "crypto-js";
 import { MerkleTree } from "merkletreejs";
 import { Readable } from "stream";
 import { promisify } from "util";
+import DataLayerError from "./DataLayerError";
 
 const unlink = promisify(fs.unlink);
 
@@ -45,6 +46,7 @@ const isHexString = (str: string): boolean => {
 export interface DataIntegrityTreeOptions {
   storeDir?: string;
   storageMode?: "local" | "unified";
+  rootHash?: string;
   // This is a hack to prevent an empty root hash from
   // being commited in the constructor when the tree is empty
   disableInitialize?: boolean;
@@ -89,7 +91,17 @@ class DataIntegrityTree {
     }
 
     this.files = new Map();
-    this.tree = this._loadLatestTree();
+
+    if (options.rootHash) {
+      const manifest = this._loadManifest();
+      if (manifest.includes(options.rootHash)) {
+        this.tree = this.deserializeTree(options.rootHash);
+      } else {
+        throw new DataLayerError(404, `Root hash ${options.rootHash} not found`);
+      }
+    } else {
+      this.tree = this._loadLatestTree();
+    }
 
     // Commit the empty Merkle tree immediately upon creation
     if (!options.disableInitialize && this.tree.getLeafCount() === 0) {
@@ -489,8 +501,14 @@ class DataIntegrityTree {
     this._rebuildTree();
   }
 
-  getSHA256(hexKey: string): string | undefined {
-    return this.files.get(hexKey)?.sha256;
+  getSHA256(hexKey: string, rootHash?: string): string | undefined {
+    if (!rootHash) {
+      return this.files.get(hexKey)?.sha256;
+    }
+
+    const tree = this.deserializeTree(rootHash);
+    // @ts-ignore
+    return tree.files.get(hexKey)?.sha256;
   }
 
   /**

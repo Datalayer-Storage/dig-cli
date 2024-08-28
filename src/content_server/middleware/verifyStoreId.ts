@@ -6,6 +6,11 @@ export const verifyStoreId = async (
   next: NextFunction
 ) => {
   try {
+    // Skip verification if the route is under the .well-known root
+    if (req.originalUrl.startsWith("/.well-known")) {
+      return next();
+    }
+
     const { storeId } = req.params;
     const referrer = req.get("Referrer");
 
@@ -13,12 +18,12 @@ export const verifyStoreId = async (
 
     if (referrer) {
       const referrerPath = new URL(referrer).pathname.split("/");
-      if (referrerPath.length > 1 && /^[a-f0-9]{64}$/.test(referrerPath[1])) {
+      if (referrerPath.length > 1 && /^[a-f0-9]{64}$|^[a-f0-9]{64}@[a-f0-9]{64}$/.test(referrerPath[1])) {
         expectedStoreId = referrerPath[1];
       }
     }
 
-    if (storeId.length !== 64) {
+    if (![64, 129].includes(storeId.length)) {
       if (expectedStoreId) {
         return res.redirect(302, `/${expectedStoreId}${req.originalUrl}`);
       } else {

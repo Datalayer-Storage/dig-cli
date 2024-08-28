@@ -1,7 +1,7 @@
 
 import fs from "fs";
 import { pullFilesFromNetwork } from "../utils/download";
-import { DIG_FOLDER_PATH, CONFIG_FILE_PATH, getActiveStoreId} from "../utils/config";
+import { STORE_PATH, CONFIG_FILE_PATH, getActiveStoreId} from "../utils/config";
 
 export const pull = async (): Promise<void> => {
     const storeId = await getActiveStoreId();
@@ -9,5 +9,5 @@ export const pull = async (): Promise<void> => {
         throw new Error("Store not found.");
     }
     
-    await pullFilesFromNetwork(storeId.toString('hex'), DIG_FOLDER_PATH);
+    await pullFilesFromNetwork(storeId.toString('hex'), STORE_PATH);
 };

@@ -38,5 +38,5 @@ export const getOwnerPuzzleHash = async (): Promise<Buffer> => {
 
 export const getOwnerPublicKey = async (): Promise<string> => {
   const ownerPuzzleHash = await getOwnerPuzzleHash();
-  return puzzleHashToAddress(ownerPuzzleHash, 'mainnet');
+  return puzzleHashToAddress(ownerPuzzleHash, 'xch');
 }

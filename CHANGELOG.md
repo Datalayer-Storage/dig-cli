@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.44](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.43...v0.0.44) (2024-08-29)
+
+
+### Features
+
+* content server improvements ([b69e241](https://github.com/Datalayer-Storage/dig-cli/commit/b69e24161b00614e94d9f5d647e0b24eda86feb6))
+
 ### [0.0.43](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.42...v0.0.43) (2024-08-27)
 
 ### [0.0.42](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.41...v0.0.42) (2024-08-27)

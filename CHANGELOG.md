@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.47](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.46...v0.0.47) (2024-08-30)
+
+
+### Bug Fixes
+
+* cmd tree in yargs ([6c236fb](https://github.com/Datalayer-Storage/dig-cli/commit/6c236fb64967fc48865c05c7fa18476a96d65a0a))
+
 ### [0.0.46](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.45...v0.0.46) (2024-08-30)
 
 

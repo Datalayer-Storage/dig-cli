@@ -190,6 +190,7 @@ export function remoteCommand(yargs: Argv<{}>) {
             });
         },
         async (argv: { action: string; storeId: string }) => {
+          console.log(argv.action, argv.storeId);
           if (argv.action === "subscribe") {
             await handlers.subscribeToStore(argv.storeId);
           } else if (argv.action === "unsubscribe") {

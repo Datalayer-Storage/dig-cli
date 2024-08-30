@@ -11,11 +11,11 @@ services:
   #  environment:
   #    CHIA_ROOT: /chia-data
   #    service: node
-  #    self_hostname: 0.0.0.0
-  #    keys: "persistent"
-  #  volumes:
-  #    - ~/.chia/mainnet:/chia-data
-  #    - ~/.chia/mainnet:/root/.chia_keys
+   #   self_hostname: 0.0.0.0
+   #   keys: "persistent"
+   # volumes:
+   #   - ~/.chia/mainnet:/chia-data
+   #   - ~/.chia/mainnet:/root/.chia_keys
 
   propagation-server:
     image: michaeltaylor3d/dig-propagation-server:latest

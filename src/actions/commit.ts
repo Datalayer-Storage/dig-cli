@@ -15,6 +15,7 @@ import {
 } from "../utils/config";
 import { waitForConfirmation } from "../blockchain/coins";
 import { getPeer } from "../blockchain/peer";
+import { errorCorrectManifest } from "../utils";
 
 export const commit = async (): Promise<void> => {
   try {
@@ -30,6 +31,8 @@ export const commit = async (): Promise<void> => {
     }
 
     const storeId = await getActiveStoreId();
+
+    errorCorrectManifest(`${STORE_PATH}/${storeId}`);
 
     if (!storeId) {
       throw new Error("Store ID not found. Please run init first.");
@@ -101,6 +104,8 @@ export const commit = async (): Promise<void> => {
       "Commit successful",
       "Failed to commit."
     );
+
+    errorCorrectManifest(`${STORE_PATH}/${storeId}`);
 
     console.log("Commit successful");
   } catch (error: any) {

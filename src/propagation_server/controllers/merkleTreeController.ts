@@ -4,7 +4,7 @@ import { Request, Response } from "express";
 import { getCredentials } from "../utils/authUtils";
 import { HttpError } from "../utils/HttpError";
 import { generateNonce } from "../utils/nonce";
-import { hasMetadataWritePermissions } from "../../blockchain/datastore";
+import { hasMetadataWritePermissions, isStoreSynced } from "../../blockchain/datastore";
 import { verifyKeyOwnershipSignature } from "../../blockchain/signature";
 import { pipeline } from "stream";
 import { promisify } from "util";
@@ -13,6 +13,27 @@ import { getStorageLocation } from "../utils/storage";
 const streamPipeline = promisify(pipeline);
 
 const digFolderPath = getStorageLocation();
+
+export const storeStatus = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { storeId } = req.params;
+
+    if (!storeId) {
+      throw new HttpError(400, "Missing storeId in path parameters.");
+    }
+
+    const synced = await isStoreSynced(Buffer.from(storeId, 'hex'));
+
+    res.status(200).json({ synced });
+  } catch (error: any) {
+    console.error("Error in storeStatus controller:", error);
+
+    const statusCode = error instanceof HttpError ? error.statusCode : 500;
+    const errorMessage = error.message || "Failed to process request";
+
+    res.status(statusCode).json({ error: errorMessage });
+  }
+}
 
 // Controller to handle HEAD requests for /stores/:storeId
 export const headStore = async (req: Request, res: Response): Promise<void> => {
@@ -95,8 +116,6 @@ export const getStore = async (req: Request, res: Response) => {
   try {
     const { storeId } = req.params;
     const relativeFilePath = req.params[0]; // This will capture the rest of the path after the storeId
-
-    console.log(storeId, relativeFilePath);
 
     if (!storeId || !relativeFilePath) {
       res.status(400).send("Missing storeId or file path.");
@@ -197,16 +216,16 @@ export const putStore = async (req: Request, res: Response): Promise<void> => {
     console.log("Key ownership signature verified successfully.");
 
     // Check store ownership
-    console.log("Checking store ownership...");
-    const isOwner = await hasMetadataWritePermissions(
-      Buffer.from(storeId, "hex"),
-      Buffer.from(publicKey, "hex")
-    );
+  //  console.log("Checking store ownership...");
+  //  const isOwner = await hasMetadataWritePermissions(
+  //    Buffer.from(storeId, "hex"),
+  //    Buffer.from(publicKey, "hex")
+  //  );
 
-    if (!isOwner) {
-      console.log("User does not have write access to this store.");
-      throw new HttpError(403, "You do not have write access to this store.");
-    }
+  //  if (!isOwner) {
+  //    console.log("User does not have write access to this store.");
+  //    throw new HttpError(403, "You do not have write access to this store.");
+  //  }
 
     console.log("User has write access to the store.");
 

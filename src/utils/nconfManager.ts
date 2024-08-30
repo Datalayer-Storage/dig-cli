@@ -22,7 +22,7 @@ export class NconfManager {
     }
 
     if (!(await fs.pathExists(this.configFilePath))) {
-      await fs.writeJson(this.configFilePath, {}); // Initialize an empty JSON file
+      await fs.writeFile(this.configFilePath, "{}");
       console.log("Configuration file created:", this.configFilePath);
     }
 

@@ -4,6 +4,13 @@ const MAX_RETRIES = 5;
 const RETRY_DELAY = 2000; // in milliseconds
 
 export const getPublicIpAddress = async (): Promise<string | undefined> => {
+  const publicIp = process.env.PUBLIC_IP;
+
+  if (publicIp) {
+    console.log('Public IP address from env:', publicIp);
+    return publicIp;
+  }
+
   let attempt = 0;
 
   while (attempt < MAX_RETRIES) {

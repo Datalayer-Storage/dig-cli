@@ -130,69 +130,63 @@ export function generateCredsCommand(yargs: Argv<{}>) {
 export function remoteCommand(yargs: Argv<{}>) {
   return yargs
     .command(
-      "remote set peer <value>",
-      "Set a datastore remote peer",
+      "remote set <type> <value>",
+      "Set remote configuration (peer or seed)",
       // @ts-ignore
-      (yargs: Argv<{ value: string }>) => {
-        return yargs.positional("value", {
-          type: "string",
-          describe: "The peer IP address to set",
-        });
+      (yargs: Argv<{ type: string; value: string }>) => {
+        return yargs
+          .positional("type", {
+            type: "string",
+            describe: "The type of value to set (peer or seed)",
+            choices: ["peer", "seed"], // Limit to peer or seed
+          })
+          .positional("value", {
+            type: "string",
+            describe: "The value to set (IP address for peer, seed phrase for seed)",
+          });
       },
-      async (argv: { value: string }) => {
-        await handlers.setRemote(argv.value);
-      }
-    )
-    .command(
-      "remote set seed <seed>",
-      "Set the mnemonic seed on the remote datastore",
-      // @ts-ignore
-      (yargs: Argv<{ seed: string }>) => {
-        return yargs.positional("seed", {
-          type: "string",
-          describe: "The seed phrase to set on the remote",
-        });
-      },
-      async (argv: { seed: string }) => {
-        await handlers.setRemoteSeed(argv.seed);
+      async (argv: { type: string; value: string }) => {
+        if (argv.type === "peer") {
+          await handlers.setRemote(argv.value);
+        } else if (argv.type === "seed") {
+          await handlers.setRemoteSeed(argv.value);
+        }
       }
     )
     .command(
       "remote sync seed",
       "Sync the mnemonic seed with the remote datastore",
-      (yargs) => yargs,  // No positional arguments
+      (yargs) => yargs, // No positional arguments
       async () => {
         await handlers.syncRemoteSeed();
       }
     )
     .command(
-      "remote store subscribe <storeId>",
-      "Subscribe to a store on the remote",
+      "remote store <action> <storeId>",
+      "Manage store subscriptions on the remote",
       // @ts-ignore
-      (yargs: Argv<{ seed: string }>) => {
-        return yargs.positional("storeId", {
-          type: "string",
-          describe: "The storeId to subscribe to",
-        });
+      (yargs: Argv<{ action: string; storeId: string }>) => {
+        return yargs
+          .positional("action", {
+            type: "string",
+            describe: "The action to perform on the store (subscribe or unsubscribe)",
+            choices: ["subscribe", "unsubscribe"], // Limit to subscribe or unsubscribe
+          })
+          .positional("storeId", {
+            type: "string",
+            describe: "The storeId to act on",
+          });
       },
-      async (argv: { storeId: string }) => {
-        await handlers.subscribeToStore(argv.storeId);
-      }
-    ).command(
-      "remote store unsubscribe <storeId>",
-      "unsubscribe and mirror a store on the remote.",
-      // @ts-ignore
-      (yargs: Argv<{ seed: string }>) => {
-        return yargs.positional("storeId", {
-          type: "string",
-          describe: "The storeId to unsubscribe from",
-        });
-      },
-      async (argv: { storeId: string }) => {
-        await handlers.unsubscribeToStore(argv.storeId);
+      async (argv: { action: string; storeId: string }) => {
+        if (argv.action === "subscribe") {
+          await handlers.subscribeToStore(argv.storeId);
+        } else if (argv.action === "unsubscribe") {
+          await handlers.unsubscribeToStore(argv.storeId);
+        }
       }
     );
 }
+
 
 
 export function keysCommand(yargs: Argv<{}>) {

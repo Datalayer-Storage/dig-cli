@@ -520,3 +520,32 @@ export const validateStore = async (): Promise<boolean> => {
 
   return true;
 };
+
+export const isStoreSynced = async (storeId: Buffer): Promise<boolean> => {
+
+  if (!storeId) {
+    console.error("No launcher ID found in the current directory");
+    return false;
+  }
+
+  console.log(`Checking if store ${storeId.toString("hex")} is up to date...`);
+
+  const rootHistory = await getRootHistory(storeId);
+
+  console.log("Root history length:", rootHistory.length);
+
+  // Load manifest file
+  const manifestFilePath = getManifestFilePath(storeId.toString("hex"));
+  if (!fs.existsSync(manifestFilePath)) {
+    return false;
+  }
+  
+  const manifestHashes = fs
+    .readFileSync(manifestFilePath, "utf-8")
+    .split("\n")
+    .filter(Boolean);
+
+  console.log("Manifest length:", manifestHashes.length);
+
+  return rootHistory.length === manifestHashes.length;
+}

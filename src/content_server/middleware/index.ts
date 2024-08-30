@@ -1,1 +1,1 @@
-export * from './verifyStoreId';
+export * from './parseUdi';

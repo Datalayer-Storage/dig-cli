@@ -8,6 +8,7 @@ import { getFilePathFromSha256 } from "./hashUtils";
 import { getServerCoinsByLauncherId } from "../blockchain/server_coin";
 import { getRootHistory } from "../blockchain/datastore";
 import { NconfManager } from "./nconfManager";
+import { errorCorrectManifest } from "./directoryUtils";
 
 // Retrieve or generate SSL certificates
 const { certPath, keyPath } = getOrCreateSSLCerts();
@@ -95,8 +96,10 @@ const downloadFileFromUrls = async (
           });
 
           request.on("error", (error: any) => {
-            if (error.code === 'ECONNREFUSED') {
-              console.warn(`Connection refused to ${url}. Trying next peer if available...`);
+            if (error.code === "ECONNREFUSED") {
+              console.warn(
+                `Connection refused to ${url}. Trying next peer if available...`
+              );
               reject(error);
             } else {
               console.error("Request error:", error);
@@ -127,7 +130,6 @@ const downloadFileFromUrls = async (
   console.error(`All URLs failed for ${filePath}. Aborting.`);
 };
 
-
 // Function to download the height.dat file from the remote store
 const downloadHeightFile = async (
   storeId: string,
@@ -143,6 +145,69 @@ const downloadHeightFile = async (
   await downloadFileFromUrls(heightFileUrls, heightFilePath, forceDownload);
 };
 
+// Function to check if a digPeer is synced with the storeId
+const isPeerSynced = async (
+  digPeer: string,
+  storeId: string
+): Promise<boolean> => {
+  return new Promise((resolve) => {
+    const url = `https://${digPeer}:4159/status/${storeId}`;
+    const urlObj = new URL(url);
+
+    const requestOptions = {
+      hostname: urlObj.hostname,
+      port: urlObj.port || 443,
+      path: urlObj.pathname,
+      method: "GET",
+      key: fs.readFileSync(keyPath),
+      cert: fs.readFileSync(certPath),
+      rejectUnauthorized: false, // Allow self-signed certificates
+    };
+
+    const request = https.request(requestOptions, (response) => {
+      if (response.statusCode === 200) {
+        let data = "";
+        response.on("data", (chunk) => {
+          data += chunk;
+        });
+        response.on("end", () => {
+          try {
+            const status = JSON.parse(data);
+            console.log(`${digPeer} sync status:`, status.synced);
+            resolve(status.synced === true);
+          } catch (error) {
+            console.error(`Error parsing response from ${url}:`, error);
+            resolve(false);
+          }
+        });
+      } else {
+        console.warn(
+          `Failed to get sync status from ${url}, status code: ${response.statusCode}`
+        );
+        resolve(false);
+      }
+    });
+
+    request.on("error", (error: any) => {
+      console.error(`Request error for ${url}:`, error);
+      resolve(false);
+    });
+
+    request.end();
+  });
+};
+
+// Function to filter out peers that are not synced
+const filterSyncedPeers = async (
+  digPeers: string[],
+  storeId: string
+): Promise<string[]> => {
+  const syncStatuses = await Promise.all(
+    digPeers.map((peer) => isPeerSynced(peer, storeId))
+  );
+  return digPeers.filter((_, index) => syncStatuses[index]);
+};
+
 // Function to pull files from remote based on the manifest and server coins
 export const pullFilesFromNetwork = async (
   storeId: string,
@@ -151,26 +216,28 @@ export const pullFilesFromNetwork = async (
   renderProgressBar: boolean = true // Optional parameter to control progress bar rendering
 ): Promise<void> => {
   try {
+    errorCorrectManifest(`${directoryPath}/${storeId}`);
     const serverCoins = await getServerCoinsByLauncherId(storeId);
 
-    const publicIp: string | null | undefined = await nconfManager.getConfigValue('publicIp');
-    const digPeers = serverCoins
+    const publicIp: string | null | undefined =
+      await nconfManager.getConfigValue("publicIp");
+    let digPeers = serverCoins
       .flatMap((coin) => coin.urls)
       .filter((peer) => peer !== publicIp); // Remove self from the list of peers
 
     const rootHistory = await getRootHistory(Buffer.from(storeId, "hex"));
 
     if (rootHistory.length === 0) {
-      const error = new Error(
+      throw new Error(
         "No roots found in rootHistory. Cannot proceed with file download."
       );
-      throw error;
     }
 
     if (digPeers.length === 0) {
-      const error = new Error("No DIG Peers found to download files from.");
-      throw error;
+      throw new Error("No DIG Peers found to download files from.");
     }
+
+    digPeers = await filterSyncedPeers(digPeers, storeId);
 
     // Ensure the base directoryPath exists
     const storeDir = path.join(directoryPath, storeId);
@@ -181,49 +248,55 @@ export const pullFilesFromNetwork = async (
     // Download height.dat file
     await downloadHeightFile(storeId, digPeers, storeDir, forceDownload);
 
-    // Calculate the total number of root hashes to be downloaded
-    const totalFiles = rootHistory.length;
+    // Read the local manifest file to get the existing root hashes
+    const localManifestPath = path.join(storeDir, "manifest.dat");
+    let localManifestHashes: string[] = [];
 
-    let progressBar: MultiBar | null = null;
-    if (renderProgressBar) {
-      progressBar = new MultiBar(
-        {
-          clearOnComplete: false,
-          hideCursor: true,
-          format: "Syncing Store | {bar} | {percentage}%",
-          noTTYOutput: true,
-        },
-        Presets.shades_classic
-      );
+    if (fs.existsSync(localManifestPath)) {
+      const localManifestContent = fs
+        .readFileSync(localManifestPath, "utf-8")
+        .trim();
+      localManifestHashes = localManifestContent.split("\n");
     }
 
+    const progressBar = renderProgressBar
+      ? new MultiBar(
+          {
+            clearOnComplete: false,
+            hideCursor: true,
+            format: "Syncing Store | {bar} | {percentage}%",
+            noTTYOutput: true,
+          },
+          Presets.shades_classic
+        )
+      : null;
+
+    const totalFiles = rootHistory.length;
     const progress = progressBar ? progressBar.create(totalFiles, 0) : null;
 
-    // Process each root hash in order
-    for (const { root_hash: rootHash } of rootHistory) {
+    // Track the new root hashes to be appended to the manifest
+    const newRootHashes: string[] = [];
+
+    // Process each root hash by index
+    for (let i = 0; i < rootHistory.length; i++) {
+      const { root_hash: rootHash } = rootHistory[i];
+
       // Construct the path for the .dat file associated with the hash
       const datFilePath = path.join(storeDir, `${rootHash}.dat`);
 
-      // .dat files are overwritable
+      // Download the .dat file
       const datUrls = digPeers.map(
         (digPeer) => `https://${digPeer}:4159/${storeId}/${rootHash}.dat`
       );
       await downloadFileFromUrls(datUrls, datFilePath, forceDownload);
 
-      // Load the .dat file content
+      // Load and verify the .dat file content
       const datFileContent = JSON.parse(fs.readFileSync(datFilePath, "utf-8"));
-
-      // Verify the root hash in the .dat file
       if (datFileContent.root !== rootHash) {
-        const error = new Error("Root hash mismatch");
-        throw error;
+        throw new Error("Root hash mismatch");
       }
 
-      if (progress) {
-        progress.increment(); // Update for .dat file
-      }
-
-      // Download all the files associated with the current generation
+      // Download all files associated with the current generation
       for (const file of Object.keys(datFileContent.files)) {
         const filePath = getFilePathFromSha256(
           datFileContent.files[file].sha256,
@@ -245,22 +318,28 @@ export const pullFilesFromNetwork = async (
           filePath,
           forceDownload || !isInDataDir
         );
-        if (progress) {
-          progress.increment(); // Update for each file downloaded
-        }
       }
 
-      // Append the processed hash to the local manifest.dat file
-      const localManifestPath = path.join(storeDir, "manifest.dat");
-      if (!fs.existsSync(localManifestPath)) {
-        fs.writeFileSync(localManifestPath, "");
+      // Append the processed hash to the manifest file only if it doesn't exist at the current index
+      if (localManifestHashes[i] !== rootHash) {
+        newRootHashes.push(rootHash);
       }
-      fs.appendFileSync(localManifestPath, `${rootHash}\n`);
+
+      if (progress) {
+        progress.increment();
+      }
+    }
+
+    // Append the new root hashes to the local manifest file
+    if (newRootHashes.length > 0) {
+      fs.appendFileSync(localManifestPath, newRootHashes.join("\n") + "\n");
     }
 
     if (progressBar) {
       progressBar.stop();
     }
+
+    errorCorrectManifest(`${directoryPath}/${storeId}`);
 
     console.log("Syncing store complete.");
   } catch (error: any) {

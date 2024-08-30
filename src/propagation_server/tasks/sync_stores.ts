@@ -47,7 +47,7 @@ const syncStore = async (storeId: string): Promise<void> => {
     }
       */
   } catch (error: any) {
-    console.error(`Error processing store ${storeId}: ${error.message}`);
+    console.trace(`Error processing store ${storeId}: ${error.message}`);
   } finally {
     await finalizeStoreSync(storeId);
   }
@@ -182,7 +182,8 @@ const task = new Task("sync-stores", async () => {
 
 const job = new SimpleIntervalJob(
   {
-    seconds: 300,
+    //seconds: 300,
+    seconds: 60,
     runImmediately: true,
   },
   task,

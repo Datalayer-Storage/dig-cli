@@ -13,7 +13,7 @@ import {
   loginCommand, 
   logoutCommand,
   serverCommand,
-  generateCredsCommand
+  generateCommand
 } from "./commands";
 
 // Configure and run Yargs
@@ -35,7 +35,7 @@ export async function setupCommands() {
   loginCommand(parser);
   logoutCommand(parser);
   serverCommand(parser);
-  generateCredsCommand(parser);
+  generateCommand(parser);
 
   // Set default command and help
   parser

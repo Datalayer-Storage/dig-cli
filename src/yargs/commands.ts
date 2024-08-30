@@ -173,37 +173,30 @@ export function remoteCommand(yargs: Argv<{}>) {
           }
         );
       })
-      .command("store", "Store operations", (yargs: Argv) => {
-        return yargs
-          .command(
-            "subscribe <storeId>",
-            "Subscribe to a store on the remote",
-            // @ts-ignore
-            (yargs: Argv<{ storeId: string }>) => {
-              return yargs.positional("storeId", {
-                type: "string",
-                describe: "The storeId to subscribe to",
-              });
-            },
-            async (argv: { storeId: string }) => {
-              await handlers.subscribeToStore(argv.storeId);
-            }
-          )
-          .command(
-            "unsubscribe <storeId>",
-            "Unsubscribe and stop mirroring a store on the remote",
-            // @ts-ignore
-            (yargs: Argv<{ storeId: string }>) => {
-              return yargs.positional("storeId", {
-                type: "string",
-                describe: "The storeId to unsubscribe from",
-              });
-            },
-            async (argv: { storeId: string }) => {
-              await handlers.unsubscribeToStore(argv.storeId);
-            }
-          );
-      });
+      .command(
+        "store <action> <storeId>",
+        "Store operations (subscribe or unsubscribe to a store on the remote)",
+        // @ts-ignore
+        (yargs: Argv<{ action: string; storeId: string }>) => {
+          return yargs
+            .positional("action", {
+              type: "string",
+              describe: "The action to perform (subscribe or unsubscribe)",
+              choices: ["subscribe", "unsubscribe"], // Limit to valid actions
+            })
+            .positional("storeId", {
+              type: "string",
+              describe: "The storeId to subscribe to or unsubscribe from",
+            });
+        },
+        async (argv: { action: string; storeId: string }) => {
+          if (argv.action === "subscribe") {
+            await handlers.subscribeToStore(argv.storeId);
+          } else if (argv.action === "unsubscribe") {
+            await handlers.unsubscribeToStore(argv.storeId);
+          }
+        }
+      );
   });
 }
 

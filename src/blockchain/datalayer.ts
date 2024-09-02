@@ -21,10 +21,8 @@ export async function createDataLayerStore(inputs: CreateStoreUserInputs = {}) {
     console.log(`Store ID: ${newStoreCoin.launcherId.toString("hex")}`);
 
     try {
-      const peer = await getPeer();
-
-      console.log(`Coin ID: ${getCoinId(newStoreCoin.coin).toString("hex")}`);
-      await waitForConfirmation(peer, newStoreCoin.coin.parentCoinInfo);
+       console.log(`Coin ID: ${getCoinId(newStoreCoin.coin).toString("hex")}`);
+      await waitForConfirmation(newStoreCoin.coin.parentCoinInfo);
     } catch (error: any) {
       console.error(error.message);
     }

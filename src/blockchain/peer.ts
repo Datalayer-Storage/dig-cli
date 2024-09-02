@@ -157,7 +157,7 @@ export const getPeer = async (): Promise<Peer> => {
         try {
           const peer = await Peer.new(
             `${ip}:${FULLNODE_PORT}`,
-            "mainnet",
+            false,
             certFile,
             keyFile
           );
@@ -215,30 +215,4 @@ export const getPeer = async (): Promise<Peer> => {
   cachedPeer = { peer: bestPeer, timestamp: now };
 
   return bestPeer;
-};
-
-export const getServerCoinPeer = async (): Promise<ServerCoinPeer> => {
-  let sslFolder = path.resolve(os.homedir(), ".dig", "ssl");
-  const certFile = path.join(sslFolder, "public_dig.crt");
-  const keyFile = path.join(sslFolder, "public_dig.key");
-
-
-  if (!fs.existsSync(sslFolder)) {
-    fs.mkdirSync(sslFolder, { recursive: true });
-  }
-
-  try {
-    const tls = new Tls(certFile, keyFile);
-    const hosts = await getPeerIPs();
-    const peer = ServerCoinPeer.connect(
-      `${hosts[0]}:${FULLNODE_PORT}`,
-      "mainnet",
-      tls
-    );
-    return peer;
-  } catch (error: any) {
-    console.error(`Failed get valid peer for ServerCoin: ${error.message}`);
-    console.log("trying again...");
-    return getServerCoinPeer();
-  }
 };

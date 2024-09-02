@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { DataStoreInfo } from "datalayer-driver";
+import { DataStore } from "datalayer-driver";
 import { STORE_PATH } from "../utils/config";
 import { serializeStoreInfo, deserializeStoreInfo } from "./serialization";
 
@@ -13,7 +13,7 @@ export const getCacheFilePath = (launcherId: string): string => {
 export const getCachedStoreInfo = (
   launcherId: string
 ): {
-  latestInfo: DataStoreInfo;
+  latestStore: DataStore;
   latestHeight: number;
   latestHash: Buffer;
 } | null => {
@@ -31,7 +31,7 @@ export const getCachedStoreInfo = (
 // Function to cache the store info
 export const cacheStoreInfo = (
   launcherId: string,
-  storeInfo: DataStoreInfo,
+  storeInfo: DataStore,
   latestHeight: number,
   latestHash: Buffer
 ): void => {
@@ -39,7 +39,7 @@ export const cacheStoreInfo = (
 
   // Serialize the store info and write it to the cache file
   const serializedData = JSON.stringify({
-    latestInfo: serializeStoreInfo(storeInfo),
+    latestStore: serializeStoreInfo(storeInfo),
     latestHeight,
     latestHash: latestHash.toString("base64"),
   });

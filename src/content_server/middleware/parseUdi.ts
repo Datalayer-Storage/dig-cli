@@ -52,7 +52,7 @@ export const parseUdi = async (
     // Early exit: If both chainName and rootHash are missing, redirect with both added
     if (!chainName && !rootHash) {
       const storeInfo = await getLatestStoreInfo(Buffer.from(storeId, "hex"));
-      rootHash = storeInfo.latestInfo.metadata.rootHash.toString("hex");
+      rootHash = storeInfo.latestStore.metadata.rootHash.toString("hex");
       return res.redirect(302, `/chia.${storeId}.${rootHash}`);
     }
 
@@ -69,7 +69,7 @@ export const parseUdi = async (
     // If rootHash is missing, fetch it and redirect with the rootHash added
     if (!rootHash) {
       const storeInfo = await getLatestStoreInfo(Buffer.from(storeId, "hex"));
-      rootHash = storeInfo.latestInfo.metadata.rootHash.toString("hex");
+      rootHash = storeInfo.latestStore.metadata.rootHash.toString("hex");
       return res.redirect(302, `/${chainName}.${storeId}.${rootHash}`);
     }
 

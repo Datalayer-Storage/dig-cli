@@ -7,7 +7,7 @@ import {
   mintStore,
   signCoinSpends,
   CoinSpend,
-  DataStoreInfo,
+  DataStore,
   getCoinId,
   DataStoreMetadata,
   addFee,
@@ -40,7 +40,7 @@ export const mintDataLayerStore = async (
   sizeInBytes?: bigint,
   authorizedWriterPublicSyntheticKey?: string,
   adminPublicSyntheticKey?: string
-): Promise<DataStoreInfo> => {
+): Promise<DataStore> => {
   try {
     const peer = await getPeer();
     const publicSyntheticKey = await getPublicSyntheticKey();
@@ -110,7 +110,7 @@ export const mintDataLayerStore = async (
     const sig = signCoinSpends(
       storeCreationResponse.coinSpends,
       [await getPrivateSyntheticKey()],
-      Buffer.from(NETWORK_AGG_SIG_DATA, "hex")
+      false
     );
 
     const err = await peer.broadcastSpend(
@@ -125,7 +125,7 @@ export const mintDataLayerStore = async (
     // Add some time to get out of the mempool
     await new Promise((resolve) => setTimeout(resolve, 5000));
 
-    return storeCreationResponse.newInfo;
+    return storeCreationResponse.newStore;
   } catch (error) {
     console.error("Unable to mint store");
     console.trace(error);
@@ -137,23 +137,22 @@ export const mintDataLayerStore = async (
 export const getLatestStoreInfo = async (
   storeId: Buffer
 ): Promise<{
-  latestInfo: DataStoreInfo;
+  latestStore: DataStore;
   latestHeight: number;
   latestHash: Buffer;
 }> => {
-  
   const cachedInfo = getCachedStoreInfo(storeId.toString("hex"));
 
   if (cachedInfo) {
     try {
       const {
-        latestInfo: previousInfo,
+        latestStore: previousInfo,
         latestHeight: previousHeight,
         latestHash: previousHash,
       } = cachedInfo;
 
       const peer = await getPeer();
-      const { latestInfo, latestHeight } = await peer.syncStore(
+      const { latestStore, latestHeight } = await peer.syncStore(
         previousInfo,
         previousHeight,
         previousHash,
@@ -165,12 +164,12 @@ export const getLatestStoreInfo = async (
       // Cache the latest store info in the file system
       cacheStoreInfo(
         storeId.toString("hex"),
-        latestInfo,
+        latestStore,
         latestHeight,
         latestHash
       );
 
-      return { latestInfo, latestHeight, latestHash };
+      return { latestStore, latestHeight, latestHash };
     } catch {
       // Any error usually indicates unknown coin meaning no new coin spend since last cache
       return cachedInfo;
@@ -197,7 +196,7 @@ export const getLatestStoreInfo = async (
   const peer = await getPeer();
 
   // If not cached, retrieve the latest store info from the blockchain
-  const { latestInfo, latestHeight } = await peer.syncStoreFromLauncherId(
+  const { latestStore, latestHeight } = await peer.syncStoreFromLauncherId(
     storeId,
     createdAtHeight || MIN_HEIGHT,
     Buffer.from(createdAtHash || MIN_HEIGHT_HEADER_HASH, "hex"),
@@ -207,9 +206,14 @@ export const getLatestStoreInfo = async (
   const latestHash = await peer.getHeaderHash(latestHeight);
 
   // Cache the latest store info in the file system
-  cacheStoreInfo(storeId.toString("hex"), latestInfo, latestHeight, latestHash);
+  cacheStoreInfo(
+    storeId.toString("hex"),
+    latestStore,
+    latestHeight,
+    latestHash
+  );
 
-  return { latestInfo, latestHeight, latestHash };
+  return { latestStore, latestHeight, latestHash };
 };
 
 export const getStoreCreatedAtHeight = async (): Promise<{
@@ -284,7 +288,7 @@ export const hasMetadataWritePermissions = async (
   retryCount: number = 10
 ): Promise<boolean> => {
   try {
-    const { latestInfo } = await getLatestStoreInfo(storeId);
+    const { latestStore } = await getLatestStoreInfo(storeId);
 
     let ownerPuzzleHash;
 
@@ -294,27 +298,32 @@ export const hasMetadataWritePermissions = async (
       ownerPuzzleHash = await getOwnerPuzzleHash();
     }
 
-    const isStoreOwner = latestInfo.ownerPuzzleHash.equals(ownerPuzzleHash);
+    const isStoreOwner = latestStore.ownerPuzzleHash.equals(ownerPuzzleHash);
 
-    const hasWriteAccess = latestInfo.delegatedPuzzles.some(
-      ({ puzzleInfo }) =>
-        puzzleInfo.adminInnerPuzzleHash?.equals(ownerPuzzleHash) ||
-        puzzleInfo.writerInnerPuzzleHash?.equals(ownerPuzzleHash)
+    const hasWriteAccess = latestStore.delegatedPuzzles.some(
+      (puzzle) =>
+        puzzle.adminInnerPuzzleHash?.equals(ownerPuzzleHash) ||
+        puzzle.writerInnerPuzzleHash?.equals(ownerPuzzleHash)
     );
 
     return isStoreOwner || hasWriteAccess;
   } catch (error: any) {
     if (error.message.includes("AlreadyClosed") && retryCount > 0) {
-      console.warn(`Retrying hasMetadataWritePermissions due to WebSocket closure... (${retryCount} retries left)`);
+      console.warn(
+        `Retrying hasMetadataWritePermissions due to WebSocket closure... (${retryCount} retries left)`
+      );
       await new Promise((resolve) => setTimeout(resolve, 1000));
-      return hasMetadataWritePermissions(storeId, publicSyntheticKey, retryCount - 1);
+      return hasMetadataWritePermissions(
+        storeId,
+        publicSyntheticKey,
+        retryCount - 1
+      );
     } else {
       console.trace(error.message);
       throw new Error("Failed to check store ownership.");
     }
   }
 };
-
 
 export const updateDataStoreMetadata = async ({
   rootHash,
@@ -327,14 +336,14 @@ export const updateDataStoreMetadata = async ({
     throw new Error("No data store found in the current directory");
   }
 
-  const { latestInfo } = await getLatestStoreInfo(storeId);
+  const { latestStore } = await getLatestStoreInfo(storeId);
 
   const peer = await getPeer();
   const ownerPublicKey = await getPublicSyntheticKey();
 
   // TODO: to make this work for all users we need a way to get the authorized writer public key as well and not just assume its the owner
   const updateStoreResponse = updateStoreMetadata(
-    latestInfo,
+    latestStore,
     rootHash,
     label,
     description,
@@ -363,7 +372,7 @@ export const updateDataStoreMetadata = async ({
   const sig = signCoinSpends(
     combinedCoinSpends,
     [await getPrivateSyntheticKey()],
-    Buffer.from(NETWORK_AGG_SIG_DATA, "hex")
+    false
   );
 
   const err = await peer.broadcastSpend(combinedCoinSpends, [sig]);
@@ -372,7 +381,7 @@ export const updateDataStoreMetadata = async ({
     throw new Error(err);
   }
 
-  return updateStoreResponse.newInfo;
+  return updateStoreResponse.newStore;
 };
 
 export const getLocalRootHistory = async (): Promise<
@@ -522,7 +531,6 @@ export const validateStore = async (): Promise<boolean> => {
 };
 
 export const isStoreSynced = async (storeId: Buffer): Promise<boolean> => {
-
   if (!storeId) {
     console.error("No launcher ID found in the current directory");
     return false;
@@ -539,7 +547,7 @@ export const isStoreSynced = async (storeId: Buffer): Promise<boolean> => {
   if (!fs.existsSync(manifestFilePath)) {
     return false;
   }
-  
+
   const manifestHashes = fs
     .readFileSync(manifestFilePath, "utf-8")
     .split("\n")
@@ -548,4 +556,4 @@ export const isStoreSynced = async (storeId: Buffer): Promise<boolean> => {
   console.log("Manifest length:", manifestHashes.length);
 
   return rootHistory.length === manifestHashes.length;
-}
+};

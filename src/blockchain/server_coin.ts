@@ -1,122 +1,141 @@
-import { bytesEqual, toCoinId, Wallet, Peer } from "chia-server-coin";
-import { getServerCoinPeer } from "./peer";
-import { NETWORK_AGG_SIG_DATA } from "../utils/config";
-import { getMnemonic } from "./mnemonic";
+import _ from "lodash";
+import {
+  morphLauncherId,
+  createServerCoin,
+  addFee,
+  getCoinId,
+  CoinSpend,
+  signCoinSpends,
+  ServerCoin
+} from "datalayer-driver";
+import { getPeer } from "./peer";
+import { selectUnspentCoins } from "./coins";
+import { getPublicSyntheticKey, getPrivateSyntheticKey } from "./keys";
+import { calculateFeeForCoinSpends } from "./coins";
 
-const stringToUint8Array = (str: String) => {
-  const buffer = Buffer.from(str, "hex");
-  return new Uint8Array(buffer);
-};
+const serverCoinCollateral = 300_000_000;
 
-const getWallet = async (peer: Peer): Promise<Wallet> => {
-  const mnemonic = await getMnemonic();
-
-  if (!mnemonic) {
-    throw new Error("Mnemonic not found");
-  }
-
-  const wallet = Wallet.initialSync(
-    peer,
-    mnemonic,
-    Buffer.from(NETWORK_AGG_SIG_DATA, "hex")
-  );
-  return wallet;
-};
-
-export const createServerCoin = async (
-  launcherId: String,
-  urls: string[],
-  amount: number = 300_000_000
-) => {
+export const createServerCoinForEpoch = async (
+  storeId: Buffer,
+  peerIp: string,
+): Promise<ServerCoin> => {
   try {
-    const peer = await getServerCoinPeer();
-    const wallet = await getWallet(peer);
-
-    await wallet.createServerCoin(
-      Buffer.from(launcherId, "hex"),
-      amount,
-      300_000_000,
-      urls
+    const peer = await getPeer();
+    const publicSyntheticKey = await getPublicSyntheticKey();
+    const serverCoinCreationCoins = await selectUnspentCoins(
+      peer,
+      BigInt(serverCoinCollateral),
+      BigInt(1000000)
     );
+
+    const currentEpoch = getCurrentEpoch();
+    const epochBasedHint = morphLauncherId(storeId, BigInt(currentEpoch));
+
+    const newServerCoin = createServerCoin(
+      publicSyntheticKey,
+      serverCoinCreationCoins,
+      epochBasedHint,
+      [peerIp],
+      BigInt(serverCoinCollateral),
+      BigInt(1000000)
+    );
+  //  const fee = await calculateFeeForCoinSpends(peer, newServerCoin.coinSpends);
+   // const unspentCoinsForFee = await selectUnspentCoins(peer, BigInt(0), fee);
+  //  const feeCoinSpends = await addFee(
+  //    publicSyntheticKey,
+   //   unspentCoinsForFee,
+   //   newServerCoin.coinSpends.map((coinSpend) => getCoinId(coinSpend.coin)),
+   //   fee
+   // );
+
+    const combinedCoinSpends = [
+      ...(newServerCoin.coinSpends as CoinSpend[]),
+    //  ...(feeCoinSpends as CoinSpend[]),
+    ];
+
+    const sig = signCoinSpends(
+      combinedCoinSpends,
+      [await getPrivateSyntheticKey()],
+      false
+    );
+
+    const err = await peer.broadcastSpend(combinedCoinSpends, [sig]);
+
+    if (err) {
+      throw new Error(err);
+    }
+
+    return newServerCoin.serverCoin;
   } catch (error: any) {
     throw new Error("Failed to create server coin: " + error.message);
   }
 };
 
-export const deleteServerCoin = async (storeId: string, coinId: string) => {
-  const peer = await getServerCoinPeer();
-  const wallet = await getWallet(peer);
+export const meltServerCoin = async (storeId: string, coinId: string) => {};
 
-  const serverCoinIter = await peer.fetchServerCoins(
-    stringToUint8Array(storeId)
-  );
-
-  const coinsToDelete = [];
-
-  while (true) {
-    const next = await serverCoinIter.next();
-    if (next === null) {
-      break;
-    }
-
-    if (bytesEqual(toCoinId(next.coin), stringToUint8Array(coinId))) {
-      coinsToDelete.push(next);
-    }
-  }
-
-  await wallet.deleteServerCoins(
-    coinsToDelete.map((coin) => coin.coin),
-    300_000_000
-  );
-
-  console.log(`Deleted coin ${coinId}`);
+export const sampleCurrentEpochServerCoins = async (storeId: Buffer, sampleSize: number = 5) => {
+  const epoch = getCurrentEpoch();
+  return sampleServerCoinsByEpoch(epoch, storeId, sampleSize);
 };
 
-export const getServerCoinsByLauncherId = async (launcherId: String) => {
-  const peer = await getServerCoinPeer();
-
-  const serverCoins = [];
-
-  const serverCoinIter = await peer.fetchServerCoins(
-    stringToUint8Array(launcherId)
-  );
-
-  while (true) {
-    const next = await serverCoinIter.next();
-    if (next === null) {
-      break;
-    }
-    serverCoins.push(next);
-  }
-
-  const serverInfo = await Promise.all(
-    serverCoins.map(async (coinRecord) => {
-      return {
-        amount: coinRecord.coin.amount,
-        launcher_id: launcherId,
-        coin_id: Buffer.from(toCoinId(coinRecord.coin)).toString("hex"),
-        urls: coinRecord.memoUrls,
-      };
-    })
-  );
-
-  return serverInfo;
-};
-
-export const doesHostExistInMirrors = async (
-  launcherId: string,
-  host: string
+export const sampleServerCoinsByEpoch = async (
+  epoch: number,
+  storeId: Buffer,
+  sampleSize: number = 5
 ) => {
-  try {
-    const mirrors = await getServerCoinsByLauncherId(launcherId);
+  const epochBasedHint = morphLauncherId(storeId, BigInt(epoch));
 
-    if (process.env.DIG_DEBUG === "1") {
-      console.log("Mirrors", mirrors);
-    }
-    return mirrors.some((server) => server.urls.some((url) => url === host));
-  } catch (error: any) {
-    throw new Error(
-      "Failed to check if host exists in mirrors: " + error.message
-    );
+  const peer = await getPeer();
+  const maxClvmCost = BigInt(11_000_000_000);
+
+  const hintedCoinStates = await peer.getHintedCoinStates(
+    epochBasedHint,
+    false
+  );
+
+  const filteredCoinStates = hintedCoinStates.filter(
+    (coinState) => coinState.coin.amount > serverCoinCollateral
+  );
+
+  // Use a Set to ensure uniqueness
+  const serverCoinPeers = new Set<string>();
+
+  for (const coinState of filteredCoinStates) {
+    const serverCoin = await peer.fetchServerCoin(coinState, maxClvmCost);
+    serverCoinPeers.add(serverCoin.memoUrls[0]);
   }
+
+  // Convert the Set back to an array if needed
+  return _.sampleSize(Array.from(serverCoinPeers), sampleSize);
+};
+
+export const getCurrentEpoch = () => {
+  return calculateEpoch(new Date());
+};
+
+/**
+ * Calculates the current epoch based on the provided timestamp in UTC.
+ * The first epoch starts on Monday, September 2, 2024, at 8:00 PM EDT.
+ * Each epoch is 7 days long.
+ *
+ * @param {Date} currentTimestampUTC - The current timestamp in UTC.
+ * @returns {number} The epoch number the given timestamp belongs to.
+ */
+export const calculateEpoch = (currentTimestampUTC: Date): number => {
+  // Start date of the first epoch (September 2, 2024, 8:00 PM EDT).
+  const firstEpochStart = new Date(Date.UTC(2024, 8, 3, 0, 0)); // September 3, 2024, 00:00 UTC (September 2, 2024, 8:00 PM EDT)
+
+  // Convert the current timestamp to milliseconds
+  const currentTimestampMillis = currentTimestampUTC.getTime();
+
+  // Calculate the number of milliseconds in one epoch (7 days)
+  const millisecondsInEpoch = 7 * 24 * 60 * 60 * 1000;
+
+  // Calculate the difference in milliseconds between the current timestamp and the first epoch start
+  const differenceMillis = currentTimestampMillis - firstEpochStart.getTime();
+
+  // Calculate the current epoch number
+  const epochNumber = Math.floor(differenceMillis / millisecondsInEpoch) + 1;
+
+  return epochNumber;
 };

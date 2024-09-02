@@ -38,15 +38,15 @@ export const commit = async (): Promise<void> => {
       throw new Error("Store ID not found. Please run init first.");
     }
 
-    const { latestInfo } = await getLatestStoreInfo(storeId);
-    if (!latestInfo) {
+    const { latestStore } = await getLatestStoreInfo(storeId);
+    if (!latestStore) {
       throw new Error("Store info not found. Please run init first.");
     }
 
-    const onChainRootHash = latestInfo.metadata.rootHash.toString("hex");
+    const onChainRootHash = latestStore.metadata.rootHash.toString("hex");
     await catchUpWithManifest(
       onChainRootHash,
-      latestInfo.launcherId.toString("hex")
+      latestStore.launcherId.toString("hex")
     );
 
     const datalayer = new DataIntegrityTree(storeId.toString("hex"), {
@@ -79,14 +79,12 @@ export const commit = async (): Promise<void> => {
     );
 
     const updatedStoreInfo = await updateDataStoreMetadata({
-      ...latestInfo.metadata,
+      ...latestStore.metadata,
       rootHash: Buffer.from(newRootHash, "hex"),
       bytes: totalBytes,
     });
 
-    const peer = await getPeer();
-
-    await waitForConfirmation(peer, updatedStoreInfo.coin.parentCoinInfo);
+    await waitForConfirmation(updatedStoreInfo.coin.parentCoinInfo);
     storeIntegrityCheck = await waitForPromise(
       () => validateStore(),
       "Checking store integrity...",
@@ -119,7 +117,6 @@ const catchUpWithManifest = async (
   onChainRootHash: string,
   storeId: string
 ) => {
-  const peer = await getPeer();
   const manifest = fs
     .readFileSync(getManifestFilePath(storeId), "utf-8")
     .trim();
@@ -147,7 +144,7 @@ const catchUpWithManifest = async (
         bytes: calculateFolderSize(path.resolve(STORE_PATH, storeId)),
       });
 
-      await waitForConfirmation(peer, updatedStoreInfo.coin.parentCoinInfo);
+      await waitForConfirmation(updatedStoreInfo.coin.parentCoinInfo);
     }
 
     console.log("Catch-up with manifest completed.");

@@ -44,3 +44,10 @@ export interface Credentials {
   username: string;
   password: string;
 }
+
+export interface ServerCoinData {
+  amount: number;
+  puzzleHash: string;
+  parentCoinInfo: string;
+  createdAt: string; // ISO date string
+}

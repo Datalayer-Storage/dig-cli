@@ -52,7 +52,7 @@ export const getKeysIndex = async (req: Request, res: Response) => {
   try {
     if (!rootHash) {
       const storeInfo = await getLatestStoreInfo(Buffer.from(storeId, "hex"));
-      rootHash = storeInfo.latestInfo.metadata.rootHash.toString("hex");
+      rootHash = storeInfo.latestStore.metadata.rootHash.toString("hex");
     }
 
     const showKeys = req.query.showKeys === "true";
@@ -134,7 +134,7 @@ export const getKey = async (req: Request, res: Response) => {
 
     if (!rootHash) {
       const storeInfo = await getLatestStoreInfo(Buffer.from(storeId, 'hex'));
-      rootHash = storeInfo.latestInfo.metadata.rootHash.toString('hex');
+      rootHash = storeInfo.latestStore.metadata.rootHash.toString('hex');
     }
 
     const key = Buffer.from(catchall, "utf-8").toString("hex");
@@ -195,7 +195,7 @@ export const headKey = async (req: Request, res: Response) => {
 
     if (!rootHash) {
       const storeInfo = await getLatestStoreInfo(Buffer.from(storeId, 'hex'));
-      rootHash = storeInfo.latestInfo.metadata.rootHash.toString('hex');
+      rootHash = storeInfo.latestStore.metadata.rootHash.toString('hex');
     }
 
     const key = Buffer.from(catchall, "utf-8").toString("hex");

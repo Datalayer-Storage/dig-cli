@@ -18,7 +18,7 @@ services:
    #   - ~/.chia/mainnet:/root/.chia_keys
 
   propagation-server:
-    image: michaeltaylor3d/dig-propagation-server:latest
+    image: michaeltaylor3d/dig-propagation-server:test
    # depends_on:
    #   - chia-nodes
     ports:
@@ -33,7 +33,7 @@ services:
       - REMOTE_NODE=1
 
   content-server:
-    image: michaeltaylor3d/dig-content-server:latest
+    image: michaeltaylor3d/dig-content-server:test
    # depends_on:
    #   - chia-nodes
     ports:

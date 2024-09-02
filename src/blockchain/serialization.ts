@@ -1,7 +1,7 @@
-import { DataStoreInfo, Coin, Proof, DataStoreMetadata, DelegatedPuzzle, DelegatedPuzzleInfo } from "datalayer-driver";
 import fs from "fs";
+import { DataStore, Coin, Proof, DataStoreMetadata, DelegatedPuzzle } from "datalayer-driver";
 
-export const serializeStoreInfo = (storeInfo: DataStoreInfo): any => {
+export const serializeStoreInfo = (storeInfo: DataStore): any => {
   return {
     coin: {
       parentCoinInfo: storeInfo.coin.parentCoinInfo.toString("hex"),
@@ -12,15 +12,15 @@ export const serializeStoreInfo = (storeInfo: DataStoreInfo): any => {
     proof: {
       lineageProof: storeInfo.proof.lineageProof
         ? {
-            parentParentCoinId: storeInfo.proof.lineageProof.parentParentCoinId.toString("hex"),
+            parentParentCoinInfo: storeInfo.proof.lineageProof.parentParentCoinInfo.toString("hex"),
             parentInnerPuzzleHash: storeInfo.proof.lineageProof.parentInnerPuzzleHash.toString("hex"),
             parentAmount: storeInfo.proof.lineageProof.parentAmount.toString(),
           }
         : undefined,
       eveProof: storeInfo.proof.eveProof
         ? {
-            parentCoinInfo: storeInfo.proof.eveProof.parentCoinInfo.toString("hex"),
-            amount: storeInfo.proof.eveProof.amount.toString(),
+            parentParentCoinInfo: storeInfo.proof.eveProof.parentParentCoinInfo.toString("hex"),
+            parentAmount: storeInfo.proof.eveProof.parentAmount.toString(),
           }
         : undefined,
     },
@@ -32,20 +32,17 @@ export const serializeStoreInfo = (storeInfo: DataStoreInfo): any => {
     },
     ownerPuzzleHash: storeInfo.ownerPuzzleHash.toString("hex"),
     delegatedPuzzles: storeInfo.delegatedPuzzles.map((puzzle) => ({
-      puzzleHash: puzzle.puzzleHash.toString("hex"),
-      puzzleInfo: {
-        adminInnerPuzzleHash: puzzle.puzzleInfo.adminInnerPuzzleHash?.toString("hex"),
-        writerInnerPuzzleHash: puzzle.puzzleInfo.writerInnerPuzzleHash?.toString("hex"),
-        oraclePaymentPuzzleHash: puzzle.puzzleInfo.oraclePaymentPuzzleHash?.toString("hex"),
-        oracleFee: puzzle.puzzleInfo.oracleFee?.toString(),
-      },
+      adminInnerPuzzleHash: puzzle.adminInnerPuzzleHash?.toString("hex"),
+      writerInnerPuzzleHash: puzzle.writerInnerPuzzleHash?.toString("hex"),
+      oraclePaymentPuzzleHash: puzzle.oraclePaymentPuzzleHash?.toString("hex"),
+      oracleFee: puzzle.oracleFee?.toString(),
     })),
   };
 };
 
 export const deserializeStoreInfo = (
   filePath: string
-): { latestInfo: DataStoreInfo, latestHeight: number, latestHash: Buffer } | null => {
+): { latestStore: DataStore, latestHeight: number, latestHash: Buffer } | null => {
   if (!fs.existsSync(filePath)) {
     return null;
   }
@@ -54,75 +51,64 @@ export const deserializeStoreInfo = (
   const data = JSON.parse(rawData);
 
   const coin: Coin = {
-    parentCoinInfo: Buffer.from(data.latestInfo.coin.parentCoinInfo, "hex"),
-    puzzleHash: Buffer.from(data.latestInfo.coin.puzzleHash, "hex"),
-    amount: BigInt(data.latestInfo.coin.amount),
+    parentCoinInfo: Buffer.from(data.latestStore.coin.parentCoinInfo, "hex"),
+    puzzleHash: Buffer.from(data.latestStore.coin.puzzleHash, "hex"),
+    amount: BigInt(data.latestStore.coin.amount),
   };
 
   const proof: Proof = {
-    lineageProof: data.latestInfo.proof.lineageProof
+    lineageProof: data.latestStore.proof.lineageProof
       ? {
-          parentParentCoinId: Buffer.from(
-            data.latestInfo.proof.lineageProof.parentParentCoinId,
-            "hex"
-          ),
-          parentInnerPuzzleHash: Buffer.from(
-            data.latestInfo.proof.lineageProof.parentInnerPuzzleHash,
-            "hex"
-          ),
-          parentAmount: BigInt(data.latestInfo.proof.lineageProof.parentAmount),
+          parentParentCoinInfo: Buffer.from(data.latestStore.proof.lineageProof.parentParentCoinInfo, "hex"),
+          parentInnerPuzzleHash: Buffer.from(data.latestStore.proof.lineageProof.parentInnerPuzzleHash, "hex"),
+          parentAmount: BigInt(data.latestStore.proof.lineageProof.parentAmount),
         }
       : undefined,
-    eveProof: data.latestInfo.proof.eveProof
+    eveProof: data.latestStore.proof.eveProof
       ? {
-          parentCoinInfo: Buffer.from(
-            data.latestInfo.proof.eveProof.parentCoinInfo,
-            "hex"
-          ),
-          amount: BigInt(data.latestInfo.proof.eveProof.amount),
+          parentParentCoinInfo: Buffer.from(data.latestStore.proof.eveProof.parentParentCoinInfo, "hex"),
+          parentAmount: BigInt(data.latestStore.proof.eveProof.parentAmount),
         }
       : undefined,
   };
 
   const metadata: DataStoreMetadata = {
-    rootHash: Buffer.from(data.latestInfo.metadata.rootHash, "hex"),
-    label: data.latestInfo.metadata.label,
-    description: data.latestInfo.metadata.description,
-    bytes: data.latestInfo.metadata.bytes ? BigInt(data.latestInfo.metadata.bytes) : undefined,
+    rootHash: Buffer.from(data.latestStore.metadata.rootHash, "hex"),
+    label: data.latestStore.metadata.label,
+    description: data.latestStore.metadata.description,
+    bytes: data.latestStore.metadata.bytes ? BigInt(data.latestStore.metadata.bytes) : undefined,
   };
 
-  const delegatedPuzzles: DelegatedPuzzle[] = data.latestInfo.delegatedPuzzles.map(
+  const delegatedPuzzles: DelegatedPuzzle[] = data.latestStore.delegatedPuzzles.map(
     (puzzle: any) => ({
-      puzzleHash: Buffer.from(puzzle.puzzleHash, "hex"),
-      puzzleInfo: {
-        adminInnerPuzzleHash: puzzle.puzzleInfo.adminInnerPuzzleHash
-          ? Buffer.from(puzzle.puzzleInfo.adminInnerPuzzleHash, "hex")
-          : undefined,
-        writerInnerPuzzleHash: puzzle.puzzleInfo.writerInnerPuzzleHash
-          ? Buffer.from(puzzle.puzzleInfo.writerInnerPuzzleHash, "hex")
-          : undefined,
-        oraclePaymentPuzzleHash: puzzle.puzzleInfo.oraclePaymentPuzzleHash
-          ? Buffer.from(puzzle.puzzleInfo.oraclePaymentPuzzleHash, "hex")
-          : undefined,
-        oracleFee: puzzle.puzzleInfo.oracleFee
-          ? BigInt(puzzle.puzzleInfo.oracleFee)
-          : undefined,
-      } as DelegatedPuzzleInfo,
+      adminInnerPuzzleHash: puzzle.adminInnerPuzzleHash
+        ? Buffer.from(puzzle.adminInnerPuzzleHash, "hex")
+        : undefined,
+      writerInnerPuzzleHash: puzzle.writerInnerPuzzleHash
+        ? Buffer.from(puzzle.writerInnerPuzzleHash, "hex")
+        : undefined,
+      oraclePaymentPuzzleHash: puzzle.oraclePaymentPuzzleHash
+        ? Buffer.from(puzzle.oraclePaymentPuzzleHash, "hex")
+        : undefined,
+      oracleFee: puzzle.oracleFee
+        ? BigInt(puzzle.oracleFee)
+        : undefined,
     })
   );
 
-  const dataStoreInfo: DataStoreInfo = {
+  const dataStoreInfo: DataStore = {
     coin,
-    launcherId: Buffer.from(data.latestInfo.launcherId, "hex"),
+    launcherId: Buffer.from(data.latestStore.launcherId, "hex"),
     proof,
     metadata,
-    ownerPuzzleHash: Buffer.from(data.latestInfo.ownerPuzzleHash, "hex"),
+    ownerPuzzleHash: Buffer.from(data.latestStore.ownerPuzzleHash, "hex"),
     delegatedPuzzles,
   };
 
   return {
-    latestInfo: dataStoreInfo,
+    latestStore: dataStoreInfo,
     latestHeight: parseInt(data.latestHeight, 10),
     latestHash: Buffer.from(data.latestHash, "base64"),
   };
 };
+

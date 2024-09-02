@@ -17,11 +17,11 @@ export const checkStoreWritePermissions = async (): Promise<void> => {
       try {
         await waitForPromise(
           async () => {
-            const { latestInfo } = await getLatestStoreInfo(storeId);
+            const { latestStore } = await getLatestStoreInfo(storeId);
 
-            if (latestInfo) {
+            if (latestStore) {
               const storeIsWritable = await hasMetadataWritePermissions(
-                latestInfo.launcherId
+                latestStore.launcherId
               );
 
               if (!storeIsWritable) {
@@ -53,14 +53,14 @@ export const ensureStoreIsSpendable = async (): Promise<void> => {
     throw new Error("Store ID not found. Please run init first.");
   }
 
-  const { latestInfo } = await getLatestStoreInfo(storeId);
-  if (latestInfo) {
+  const { latestStore } = await getLatestStoreInfo(storeId);
+  if (latestStore) {
     console.log(
       "Checking if Store is spendable:",
-      latestInfo.launcherId.toString("hex")
+      latestStore.launcherId.toString("hex")
     );
 
-    const isSpendable = await isCoinSpendable(peer, getCoinId(latestInfo.coin));
+    const isSpendable = await isCoinSpendable(peer, getCoinId(latestStore.coin));
 
     if (!isSpendable) {
       throw new Error("Store is not spendable. Please wait for confirmation.");

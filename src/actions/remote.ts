@@ -9,7 +9,7 @@ import { ensureDigConfig, DIG_FOLDER_PATH } from "../utils/config";
 import { getOrCreateSSLCerts } from "../utils/ssl";
 import { promptCredentials } from "../utils";
 import { getMnemonic } from "../blockchain/mnemonic";
-import { getServerCoinsByLauncherId } from "../blockchain/server_coin";
+import { sampleCurrentEpochServerCoins } from "../blockchain/server_coin";
 
 export const setRemote = (remote: string): void => {
   _setRemote(remote);
@@ -82,7 +82,7 @@ export const subscribeToStore = async (storeId: string): Promise<void> => {
     throw new Error("Invalid storeId. Must be a 64-character hexadecimal string." );
   }
 
-  const storeMirrors = await getServerCoinsByLauncherId(storeId);
+  const storeMirrors = await sampleCurrentEpochServerCoins(Buffer.from(storeId, 'hex'));
 
   if (storeMirrors.length === 0) {
     throw new Error("Cannot find any mirrors for the store, unable to subscribe.");

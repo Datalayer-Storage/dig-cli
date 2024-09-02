@@ -11,14 +11,16 @@ import {
   validateStore,
 } from "../../blockchain/datastore";
 import { pullFilesFromNetwork } from "../../utils/download";
-import {
-  doesHostExistInMirrors,
-  createServerCoin,
-} from "../../blockchain/server_coin";
+import { createServerCoinForEpoch } from "../../blockchain/server_coin";
 import { NconfManager } from "../../utils/nconfManager";
+import { ServerCoinData } from "../../types";
+import { getCurrentEpoch, calculateEpoch } from "../../blockchain/server_coin";
+import { waitForConfirmation } from "../../blockchain/coins";
+import { getPeer } from "../../blockchain/peer";
 
 const PUBLIC_IP_KEY = "publicIp";
 const nconfManager = new NconfManager("config.json");
+const serverCoinManager = new NconfManager("server_coin.json");
 
 const syncStore = async (storeId: string): Promise<void> => {
   console.log(`Starting sync process for store ${storeId}...`);
@@ -63,7 +65,7 @@ const isStoreUpToDate = async (storeId: string): Promise<boolean> => {
     console.log(`Manifest file not found for store ${storeId}.`);
     return false;
   }
-  
+
   const manifest = fs
     .readFileSync(getManifestFilePath(storeId), "utf-8")
     .trim();
@@ -111,14 +113,35 @@ const ensureServerCoinExists = async (
 ): Promise<void> => {
   try {
     console.log(`Ensuring server coin exists for store ${storeId}...`);
-    const serverCoinExists = await doesHostExistInMirrors(storeId, publicIp);
+    const serverCoinExists = await hasEpochCoinBeenCreated(storeId, publicIp);
     if (!serverCoinExists) {
       console.log(
         `No server coin found for store ${storeId} on IP ${publicIp}. Creating new server coin...`
       );
-      await createServerCoin(storeId, [publicIp]);
+      const serverCoin = await createServerCoinForEpoch(
+        Buffer.from(storeId, "hex"),
+        publicIp
+      );
+
+      const currentEpoch = getCurrentEpoch();
+
+      // Save serverCoin.coin to serverCoinManager with the current date
+      const coinData = {
+        coin: {
+          amount: serverCoin.coin.amount.toString(),
+          puzzleHash: serverCoin.coin.puzzleHash.toString("hex"),
+          parentCoinInfo: serverCoin.coin.parentCoinInfo.toString("hex"),
+        },
+        createdAt: new Date().toISOString(),
+        epoch: currentEpoch,
+      };
+
+      await waitForConfirmation(serverCoin.coin.parentCoinInfo);
+
+      serverCoinManager.setConfigValue(`${storeId}:${publicIp}`, coinData);
+
       console.log(
-        `Server coin created for store ${storeId} on IP ${publicIp}.`
+        `Server coin created and saved for store ${storeId} on IP ${publicIp}. Epoch: ${currentEpoch}`
       );
     } else {
       console.log(`Server coin already exists for store ${storeId}.`);
@@ -127,6 +150,39 @@ const ensureServerCoinExists = async (
     console.error(
       `Error in ensuring server coin for store ${storeId}: ${error.message}`
     );
+  }
+};
+
+const hasEpochCoinBeenCreated = async (
+  storeId: string,
+  publicIp: string
+): Promise<boolean> => {
+  try {
+    const serverCoin: ServerCoinData | null =
+      await serverCoinManager.getConfigValue(`${storeId}:${publicIp}`);
+
+    const currentEpoch = getCurrentEpoch();
+
+    if (!serverCoin) {
+      console.log(
+        `No server coin found for store ${storeId} on IP ${publicIp} for epoch: ${currentEpoch}.`
+      );
+      return false;
+    }
+
+    const coinEpoch = calculateEpoch(new Date(serverCoin.createdAt));
+
+    if (coinEpoch < currentEpoch) {
+      console.log(
+        `Server coin for store ${storeId} on IP ${publicIp} is outdated. Last Coin Epoch: ${coinEpoch}, Current Epoch: ${currentEpoch}.`
+      );
+      return false;
+    }
+
+    return true;
+  } catch (error: any) {
+    console.error(`Error checking for existing server coin: ${error.message}`);
+    return false;
   }
 };
 

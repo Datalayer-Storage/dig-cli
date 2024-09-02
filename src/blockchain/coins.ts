@@ -9,6 +9,7 @@ import {
 import { getOwnerPuzzleHash } from "./keys";
 import { MIN_HEIGHT, MIN_HEIGHT_HEADER_HASH } from "../utils/config";
 import { createSpinner } from "nanospinner";
+import { getPeer } from "./peer";
 
 export const DEFAULT_FEE_COIN_COST = 64_000_000;
 
@@ -91,10 +92,10 @@ export const selectUnspentCoins = async (
 };
 
 export const waitForConfirmation = async (
-  peer: Peer,
   parentCoinInfo: Buffer
 ): Promise<boolean> => {
   const spinner = createSpinner("Waiting for confirmation...").start();
+  const peer = await getPeer();
 
   try {
     while (true) {
@@ -111,7 +112,7 @@ export const waitForConfirmation = async (
 
       await new Promise((resolve) => setTimeout(resolve, 5000));
     }
-  } catch (error) {
+  } catch (error: any) {
     spinner.error({ text: "Error while waiting for confirmation." });
     throw error;
   }

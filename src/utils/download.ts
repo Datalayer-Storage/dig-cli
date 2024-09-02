@@ -5,7 +5,7 @@ import { URL } from "url";
 import { MultiBar, Presets } from "cli-progress";
 import { getOrCreateSSLCerts } from "./ssl";
 import { getFilePathFromSha256 } from "./hashUtils";
-import { getServerCoinsByLauncherId } from "../blockchain/server_coin";
+import { sampleCurrentEpochServerCoins } from "../blockchain/server_coin";
 import { getRootHistory } from "../blockchain/datastore";
 import { NconfManager } from "./nconfManager";
 import { errorCorrectManifest } from "./directoryUtils";
@@ -217,13 +217,12 @@ export const pullFilesFromNetwork = async (
 ): Promise<void> => {
   try {
     errorCorrectManifest(`${directoryPath}/${storeId}`);
-    const serverCoins = await getServerCoinsByLauncherId(storeId);
+    let digPeers = (
+      await sampleCurrentEpochServerCoins(Buffer.from(storeId, "hex"), 10)
+    ).filter((peer) => peer !== publicIp);
 
     const publicIp: string | null | undefined =
       await nconfManager.getConfigValue("publicIp");
-    let digPeers = serverCoins
-      .flatMap((coin) => coin.urls)
-      .filter((peer) => peer !== publicIp); // Remove self from the list of peers
 
     const rootHistory = await getRootHistory(Buffer.from(storeId, "hex"));
 

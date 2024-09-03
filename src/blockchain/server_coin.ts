@@ -6,18 +6,24 @@ import {
   getCoinId,
   CoinSpend,
   signCoinSpends,
-  ServerCoin
+  ServerCoin,
+  lookupAndSpendServerCoins,
+  Peer
 } from "datalayer-driver";
 import { getPeer } from "./peer";
-import { selectUnspentCoins } from "./coins";
+import { selectUnspentCoins, waitForConfirmation } from "./coins";
 import { getPublicSyntheticKey, getPrivateSyntheticKey } from "./keys";
+import { NconfManager } from "../utils/nconfManager";
 import { calculateFeeForCoinSpends } from "./coins";
+import { CoinData, ServerCoinData } from "../types";
+import { peer } from ".";
 
 const serverCoinCollateral = 300_000_000;
+const serverCoinManager = new NconfManager("server_coin.json");
 
 export const createServerCoinForEpoch = async (
   storeId: Buffer,
-  peerIp: string,
+  peerIp: string
 ): Promise<ServerCoin> => {
   try {
     const peer = await getPeer();
@@ -39,18 +45,21 @@ export const createServerCoinForEpoch = async (
       BigInt(serverCoinCollateral),
       BigInt(1000000)
     );
-  //  const fee = await calculateFeeForCoinSpends(peer, newServerCoin.coinSpends);
-   // const unspentCoinsForFee = await selectUnspentCoins(peer, BigInt(0), fee);
-  //  const feeCoinSpends = await addFee(
-  //    publicSyntheticKey,
-   //   unspentCoinsForFee,
-   //   newServerCoin.coinSpends.map((coinSpend) => getCoinId(coinSpend.coin)),
-   //   fee
-   // );
+    //   const fee = await calculateFeeForCoinSpends(peer, newServerCoin.coinSpends);
+    // const unspentCoinsForFee = await selectUnspentCoins(peer, BigInt(0), fee, serverCoinCreationCoins);
+    //   console.log("Unspent coins for fee: ", getCoinId(unspentCoinsForFee[0]).toString("hex"));
+    // const feeCoinSpends = await addFee(
+    //   publicSyntheticKey,
+    //   unspentCoinsForFee,
+    //   newServerCoin.coinSpends.map((coinSpend) => getCoinId(coinSpend.coin)),
+    //    fee
+    // );
+
+    //   console.log(serverCoinCreationCoins, feeCoinSpends);
 
     const combinedCoinSpends = [
       ...(newServerCoin.coinSpends as CoinSpend[]),
-    //  ...(feeCoinSpends as CoinSpend[]),
+      //   ...(feeCoinSpends as CoinSpend[]),
     ];
 
     const sig = signCoinSpends(
@@ -62,6 +71,12 @@ export const createServerCoinForEpoch = async (
     const err = await peer.broadcastSpend(combinedCoinSpends, [sig]);
 
     if (err) {
+      if (err.includes("no spendable coins")) {
+        console.log("No coins available will try again in 5 seconds");
+        await new Promise((resolve) => setTimeout(resolve, 5000));
+        return createServerCoinForEpoch(storeId, peerIp);
+        // Auto Split Coins
+      }
       throw new Error(err);
     }
 
@@ -71,9 +86,47 @@ export const createServerCoinForEpoch = async (
   }
 };
 
-export const meltServerCoin = async (storeId: string, coinId: string) => {};
+export const meltServerCoin = async (peer: Peer, serverCoin: CoinData) => {
+  const publicSyntheticKey = await getPublicSyntheticKey();
+  const feeCoins = await selectUnspentCoins(peer, BigInt(0), BigInt(1000000));
 
-export const sampleCurrentEpochServerCoins = async (storeId: Buffer, sampleSize: number = 5) => {
+  const coin = {
+    amount: BigInt(serverCoin.amount),
+    puzzleHash: Buffer.from(serverCoin.puzzleHash, "hex"),
+    parentCoinInfo: Buffer.from(serverCoin.parentCoinInfo, "hex"),
+  };
+
+  const serverCoinId = getCoinId(coin);
+
+  console.log("Melt Coin ID: ", serverCoinId.toString("hex"));
+
+  const spendBundle = await lookupAndSpendServerCoins(
+    peer,
+    publicSyntheticKey,
+    [coin, ...feeCoins],
+    BigInt(1000000),
+    false
+  );
+
+  const sig = signCoinSpends(
+    spendBundle,
+    [await getPrivateSyntheticKey()],
+    false
+  );
+
+  const err = await peer.broadcastSpend(spendBundle, [sig]);
+
+  if (err) {
+    throw new Error(err);
+  }
+
+  await waitForConfirmation(serverCoinId);
+};
+
+export const sampleCurrentEpochServerCoins = async (
+  storeId: Buffer,
+  sampleSize: number = 5
+) => {
   const epoch = getCurrentEpoch();
   return sampleServerCoinsByEpoch(epoch, storeId, sampleSize);
 };
@@ -114,6 +167,50 @@ export const getCurrentEpoch = () => {
 };
 
 /**
+ * Retrieves and iterates through all server coins that are not in the current epoch.
+ * Removes the server coin from the nconf configuration file after processing it.
+ * @param storeId - The ID of the store.
+ * @param publicIp - The public IP associated with the server coins.
+ */
+export const meltOutdatedEpochs = async (
+  storeId: string,
+  publicIp: string
+): Promise<void> => {
+  try {
+    const peer = await getPeer();
+
+    const currentEpoch = getCurrentEpoch();
+    let serverCoins = await getServerCoinsForStore(storeId, publicIp);
+
+    // Filter out the coins that are not in the current epoch
+    const outdatedCoins = serverCoins.filter(
+      (coin) => coin.epoch < currentEpoch
+    );
+
+    // Iterate through each outdated coin sequentially
+    for (const serverCoin of outdatedCoins) {
+      await meltServerCoin(peer, serverCoin.coin);
+
+      // Remove the processed coin from the serverCoins array
+      serverCoins = serverCoins.filter(
+        (coin) => coin.epoch !== serverCoin.epoch
+      );
+
+      // Update the nconf file with the updated array
+      await serverCoinManager.setConfigValue(
+        `${storeId}:${publicIp}`,
+        serverCoins
+      );
+    }
+  } catch (error: any) {
+    console.error(
+      `Error processing outdated epochs for store ${storeId} on IP ${publicIp}: ${error.message}`
+    );
+    throw error;
+  }
+};
+
+/**
  * Calculates the current epoch based on the provided timestamp in UTC.
  * The first epoch starts on Monday, September 2, 2024, at 8:00 PM EDT.
  * Each epoch is 7 days long.
@@ -138,4 +235,101 @@ export const calculateEpoch = (currentTimestampUTC: Date): number => {
   const epochNumber = Math.floor(differenceMillis / millisecondsInEpoch) + 1;
 
   return epochNumber;
+};
+
+export const ensureServerCoinExists = async (
+  storeId: string,
+  publicIp: string
+): Promise<void> => {
+  try {
+    console.log(`Ensuring server coin exists for store ${storeId}...`);
+    const currentEpoch = getCurrentEpoch();
+    const serverCoins = await getServerCoinsForStore(storeId, publicIp);
+
+    // Check if a server coin already exists for the current epoch
+    const existingCoin = serverCoins.find(
+      (coin) => coin.epoch === currentEpoch
+    );
+
+    if (existingCoin) {
+      return;
+    }
+
+    console.log(
+      `No server coin found for store ${storeId} on IP ${publicIp} for epoch: ${currentEpoch}. Creating new server coin...`
+    );
+    const serverCoin = await createServerCoinForEpoch(
+      Buffer.from(storeId, "hex"),
+      publicIp
+    );
+
+    const newServerCoinData: ServerCoinData = {
+      coin: {
+        amount: serverCoin.coin.amount.toString(),
+        puzzleHash: serverCoin.coin.puzzleHash.toString("hex"),
+        parentCoinInfo: serverCoin.coin.parentCoinInfo.toString("hex"),
+      },
+      createdAt: new Date().toISOString(),
+      epoch: currentEpoch,
+    };
+
+    await waitForConfirmation(serverCoin.coin.parentCoinInfo);
+
+    serverCoins.push(newServerCoinData); // Add the new server coin to the array
+
+    await serverCoinManager.setConfigValue(
+      `${storeId}:${publicIp}`,
+      serverCoins
+    );
+
+    console.log(
+      `Server coin created and saved for store ${storeId} on IP ${publicIp}. Epoch: ${currentEpoch}`
+    );
+  } catch (error: any) {
+    console.error(
+      `Error in ensuring server coin for store ${storeId}: ${error.message}`
+    );
+    throw error;
+  }
+};
+
+const getServerCoinsForStore = async (
+  storeId: string,
+  publicIp: string
+): Promise<ServerCoinData[]> => {
+  const serverCoins: ServerCoinData[] =
+    (await serverCoinManager.getConfigValue<ServerCoinData[]>(
+      `${storeId}:${publicIp}`
+    )) || [];
+  return serverCoins;
+};
+
+export const hasEpochCoinBeenCreated = async (
+  storeId: string,
+  currentEpoch: number,
+  publicIp: string
+): Promise<boolean> => {
+  try {
+    const serverCoins = await getServerCoinsForStore(storeId, publicIp);
+
+    const existingCoin = serverCoins.find(
+      (coin) => coin.epoch === currentEpoch
+    );
+
+    if (!existingCoin) {
+      console.log(
+        `No server coin found for store ${storeId} on IP ${publicIp} for epoch: ${currentEpoch}.`
+      );
+      return false;
+    }
+
+    console.log(
+      `Server coin for epoch ${currentEpoch} found for store ${storeId} on IP ${publicIp}.`
+    );
+
+    return true;
+  } catch (error: any) {
+    console.error(`Error checking for existing server coin: ${error.message}`);
+    return false;
+  }
 };

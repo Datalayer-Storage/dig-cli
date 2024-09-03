@@ -1,3 +1,5 @@
+import { Coin } from "datalayer-driver";
+
 export interface FileDetails {
   filename: string;
   sha256: string;
@@ -45,9 +47,14 @@ export interface Credentials {
   password: string;
 }
 
-export interface ServerCoinData {
-  amount: number;
+export interface CoinData {
+  amount: string;
   puzzleHash: string;
   parentCoinInfo: string;
+}
+
+export interface ServerCoinData {
+  coin: CoinData;
   createdAt: string; // ISO date string
+  epoch: number;
 }

@@ -31,7 +31,8 @@ export class NconfManager {
 
   public async getConfigValue<T>(key: string): Promise<T | null> {
     await this.initializeConfig();
-    return nconf.get(key) || null;
+    const value = nconf.get(key);
+    return value !== undefined ? value : null;
   }
 
   public async setConfigValue(key: string, value: any): Promise<void> {

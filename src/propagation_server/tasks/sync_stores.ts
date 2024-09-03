@@ -10,17 +10,15 @@ import {
   getLatestStoreInfo,
   validateStore,
 } from "../../blockchain/datastore";
+import { Mutex } from "async-mutex";
 import { pullFilesFromNetwork } from "../../utils/download";
-import { createServerCoinForEpoch } from "../../blockchain/server_coin";
 import { NconfManager } from "../../utils/nconfManager";
-import { ServerCoinData } from "../../types";
-import { getCurrentEpoch, calculateEpoch } from "../../blockchain/server_coin";
-import { waitForConfirmation } from "../../blockchain/coins";
-import { getPeer } from "../../blockchain/peer";
+import { ensureServerCoinExists, meltOutdatedEpochs } from "../../blockchain/server_coin";
+
+const mutex = new Mutex();
 
 const PUBLIC_IP_KEY = "publicIp";
 const nconfManager = new NconfManager("config.json");
-const serverCoinManager = new NconfManager("server_coin.json");
 
 const syncStore = async (storeId: string): Promise<void> => {
   console.log(`Starting sync process for store ${storeId}...`);
@@ -107,85 +105,6 @@ const resyncStoreFromScratch = async (storeId: string): Promise<void> => {
   await pullFilesFromNetwork(storeId, STORE_PATH, true, false);
 };
 
-const ensureServerCoinExists = async (
-  storeId: string,
-  publicIp: string
-): Promise<void> => {
-  try {
-    console.log(`Ensuring server coin exists for store ${storeId}...`);
-    const serverCoinExists = await hasEpochCoinBeenCreated(storeId, publicIp);
-    if (!serverCoinExists) {
-      console.log(
-        `No server coin found for store ${storeId} on IP ${publicIp}. Creating new server coin...`
-      );
-      const serverCoin = await createServerCoinForEpoch(
-        Buffer.from(storeId, "hex"),
-        publicIp
-      );
-
-      const currentEpoch = getCurrentEpoch();
-
-      // Save serverCoin.coin to serverCoinManager with the current date
-      const coinData = {
-        coin: {
-          amount: serverCoin.coin.amount.toString(),
-          puzzleHash: serverCoin.coin.puzzleHash.toString("hex"),
-          parentCoinInfo: serverCoin.coin.parentCoinInfo.toString("hex"),
-        },
-        createdAt: new Date().toISOString(),
-        epoch: currentEpoch,
-      };
-
-      await waitForConfirmation(serverCoin.coin.parentCoinInfo);
-
-      serverCoinManager.setConfigValue(`${storeId}:${publicIp}`, coinData);
-
-      console.log(
-        `Server coin created and saved for store ${storeId} on IP ${publicIp}. Epoch: ${currentEpoch}`
-      );
-    } else {
-      console.log(`Server coin already exists for store ${storeId}.`);
-    }
-  } catch (error: any) {
-    console.error(
-      `Error in ensuring server coin for store ${storeId}: ${error.message}`
-    );
-  }
-};
-
-const hasEpochCoinBeenCreated = async (
-  storeId: string,
-  publicIp: string
-): Promise<boolean> => {
-  try {
-    const serverCoin: ServerCoinData | null =
-      await serverCoinManager.getConfigValue(`${storeId}:${publicIp}`);
-
-    const currentEpoch = getCurrentEpoch();
-
-    if (!serverCoin) {
-      console.log(
-        `No server coin found for store ${storeId} on IP ${publicIp} for epoch: ${currentEpoch}.`
-      );
-      return false;
-    }
-
-    const coinEpoch = calculateEpoch(new Date(serverCoin.createdAt));
-
-    if (coinEpoch < currentEpoch) {
-      console.log(
-        `Server coin for store ${storeId} on IP ${publicIp} is outdated. Last Coin Epoch: ${coinEpoch}, Current Epoch: ${currentEpoch}.`
-      );
-      return false;
-    }
-
-    return true;
-  } catch (error: any) {
-    console.error(`Error checking for existing server coin: ${error.message}`);
-    return false;
-  }
-};
-
 const finalizeStoreSync = async (storeId: string): Promise<void> => {
   try {
     console.log(`Finalizing sync for store ${storeId}...`);
@@ -197,43 +116,55 @@ const finalizeStoreSync = async (storeId: string): Promise<void> => {
 };
 
 const task = new Task("sync-stores", async () => {
-  console.log("Starting sync-stores task...");
+  if (!mutex.isLocked()) {
+    const releaseMutex = await mutex.acquire();
 
-  const storeList = getStoresList();
-  let publicIp: string | null | undefined;
-
-  try {
-    publicIp = await nconfManager.getConfigValue(PUBLIC_IP_KEY);
-    if (publicIp) {
-      console.log(`Retrieved public IP from configuration: ${publicIp}`);
-    } else {
-      console.warn(
-        "No public IP found in configuration, skipping server coin creation."
-      );
-    }
-  } catch (error: any) {
-    console.error(
-      `Failed to retrieve public IP from configuration: ${error.message}`
-    );
-    return; // Exit the task if we can't retrieve the public IP
-  }
-
-  for (const storeId of storeList) {
     try {
-      await syncStore(storeId);
-      if (publicIp) {
-        await ensureServerCoinExists(storeId, publicIp);
-      } else {
-        console.warn(
-          `Skipping server coin check for store ${storeId} due to missing public IP.`
+      console.log("Starting sync-stores task...");
+
+      const storeList = getStoresList();
+      let publicIp: string | null | undefined;
+
+      try {
+        publicIp = await nconfManager.getConfigValue(PUBLIC_IP_KEY);
+        if (publicIp) {
+          console.log(`Retrieved public IP from configuration: ${publicIp}`);
+        } else {
+          console.warn(
+            "No public IP found in configuration, skipping server coin creation."
+          );
+        }
+      } catch (error: any) {
+        console.error(
+          `Failed to retrieve public IP from configuration: ${error.message}`
         );
+        return; // Exit the task if we can't retrieve the public IP
       }
-    } catch (error: any) {
-      console.error(`Failed to sync store ${storeId}: ${error.message}`);
+
+      for (const storeId of storeList) {
+        try {
+          await syncStore(storeId);
+          if (publicIp) {
+            await ensureServerCoinExists(storeId, publicIp);
+            // By melting after the new epoch is ensured there is no period where there
+            // would be no coin for the store, downside is that more XCH is required in the wallet
+            // to handle the small period where both are locked up
+            await meltOutdatedEpochs(storeId, publicIp);
+          } else {
+            console.warn(
+              `Skipping server coin check for store ${storeId} due to missing public IP.`
+            );
+          }
+        } catch (error: any) {
+          console.error(`Failed to sync store ${storeId}: ${error.message}`);
+        }
+      }
+
+      console.log("Sync-stores task completed.");
+    } finally {
+      releaseMutex();
     }
   }
-
-  console.log("Sync-stores task completed.");
 });
 
 const job = new SimpleIntervalJob(

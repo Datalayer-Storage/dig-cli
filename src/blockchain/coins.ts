@@ -66,9 +66,9 @@ export const selectUnspentCoins = async (
 
   const omitCoinIds = omitCoins.map((coin) => getCoinId(coin).toString("hex"));
 
-  if (process.env.DIG_DEBUG == "1") {
+ // if (process.env.DIG_DEBUG == "1") {
     console.log("Omit Coin IDs:", omitCoinIds); // Debugging
-  }
+ // }
 
   const unspentCoins = coinsResp.coins;
 
@@ -80,7 +80,7 @@ export const selectUnspentCoins = async (
     console.log("Unspent Coins after filtering:", filteredUnspentCoins); // Debugging
   }
 
-  const selectedCoins = selectCoins(unspentCoins, feeBigInt + coinAmount);
+  const selectedCoins = selectCoins(filteredUnspentCoins, feeBigInt + coinAmount);
   if (process.env.DIG_DEBUG == "1") {
     console.log("Selected Coins:", selectedCoins); // Debugging
   }

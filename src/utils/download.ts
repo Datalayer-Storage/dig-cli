@@ -1,207 +1,74 @@
 import * as fs from "fs";
 import * as path from "path";
-import * as https from "https";
-import { URL } from "url";
 import { MultiBar, Presets } from "cli-progress";
-import { getOrCreateSSLCerts } from "./ssl";
 import { getFilePathFromSha256 } from "./hashUtils";
 import { sampleCurrentEpochServerCoins } from "../blockchain/server_coin";
 import { getRootHistory } from "../blockchain/datastore";
 import { NconfManager } from "./nconfManager";
 import { errorCorrectManifest } from "./directoryUtils";
+import { DigPeer } from "./DigPeer";
 
-// Retrieve or generate SSL certificates
-const { certPath, keyPath } = getOrCreateSSLCerts();
 const nconfManager = new NconfManager("config.json");
 
-// Function to download a single file using a list of URLs, with retry and less aggressive exponential backoff
-const downloadFileFromUrls = async (
-  urls: string[],
+// Function to download a single file using DigPeer class
+const downloadFileFromDigPeer = async (
+  digPeer: DigPeer,
+  key: string,
   filePath: string,
-  overwrite: boolean = true,
-  maxRetries: number = 5
+  overwrite: boolean = true
 ): Promise<void> => {
-  let delay = 2000; // Start with a 2-second delay
-  const maxDelay = 10000; // Cap the delay at 10 seconds
-  const delayMultiplier = 1.5; // Use a less aggressive multiplier
-
-  for (const url of urls) {
-    let attempt = 0;
-    while (attempt < maxRetries) {
-      try {
-        // Ensure the directory for the file exists before each attempt
-        const fileDir = path.dirname(filePath);
-        if (!fs.existsSync(fileDir)) {
-          fs.mkdirSync(fileDir, { recursive: true });
-        }
-
-        // Skip download if the file exists and overwrite is not allowed
-        if (!overwrite && fs.existsSync(filePath)) {
-          return;
-        }
-
-        await new Promise<void>((resolve, reject) => {
-          const urlObj = new URL(url);
-
-          const requestOptions = {
-            hostname: urlObj.hostname,
-            port: urlObj.port || 443,
-            path: urlObj.pathname + urlObj.search,
-            method: "GET",
-            key: fs.readFileSync(keyPath),
-            cert: fs.readFileSync(certPath),
-            rejectUnauthorized: false, // Allow self-signed certificates
-          };
-
-          const request = https.request(requestOptions, (response) => {
-            if (response.statusCode === 200) {
-              // Create the directory structure again as a safeguard
-              const fileDir = path.dirname(filePath);
-              if (!fs.existsSync(fileDir)) {
-                fs.mkdirSync(fileDir, { recursive: true });
-              }
-
-              const writeStream = fs.createWriteStream(filePath);
-
-              response.pipe(writeStream);
-
-              writeStream.on("finish", resolve);
-              writeStream.on("error", (error) => {
-                console.error("Write stream error:", error);
-                reject(error);
-              });
-            } else if (
-              response.statusCode === 301 ||
-              response.statusCode === 302
-            ) {
-              // Handle redirects
-              downloadFileFromUrls(
-                [response.headers.location!],
-                filePath,
-                overwrite,
-                maxRetries
-              )
-                .then(resolve)
-                .catch((error) => {
-                  console.error("Redirect error:", error);
-                  reject(error);
-                });
-            } else {
-              const error = new Error(
-                `Request failed with status code ${response.statusCode}`
-              );
-              console.error("Request error:", error);
-              reject(error);
-            }
-          });
-
-          request.on("error", (error: any) => {
-            if (error.code === "ECONNREFUSED") {
-              console.warn(
-                `Connection refused to ${url}. Trying next peer if available...`
-              );
-              reject(error);
-            } else {
-              console.error("Request error:", error);
-              reject(error);
-            }
-          });
-          request.end();
-        });
-
-        return; // Exit if successful
-      } catch (error: any) {
-        console.warn(
-          `Download attempt ${attempt + 1} from ${url} failed: ${error.message}`
-        );
-      }
-
-      attempt++;
-      if (attempt < maxRetries) {
-        console.warn(
-          `Retrying download from ${url} in ${delay / 1000} seconds...`
-        );
-        await new Promise((resolve) => setTimeout(resolve, delay));
-        delay = Math.min(maxDelay, delay * delayMultiplier); // Less aggressive backoff with a max delay cap
-      }
-    }
+  // Ensure the directory for the file exists before each attempt
+  const fileDir = path.dirname(filePath);
+  if (!fs.existsSync(fileDir)) {
+    fs.mkdirSync(fileDir, { recursive: true });
   }
 
-  console.error(`All URLs failed for ${filePath}. Aborting.`);
+  // Skip download if the file exists and overwrite is not allowed
+  if (!overwrite && fs.existsSync(filePath)) {
+    return;
+  }
+
+  try {
+    const fileContent = await digPeer.getKey(key);
+    fs.writeFileSync(filePath, fileContent);
+  } catch (error: any) {
+    console.error(`Failed to download file from ${digPeer.ipAddress}:`, error.message);
+    throw error;
+  }
 };
 
 // Function to download the height.dat file from the remote store
 const downloadHeightFile = async (
   storeId: string,
-  digPeers: string[],
+  digPeers: DigPeer[],
   storeDir: string,
   forceDownload: boolean = false
 ): Promise<void> => {
   const heightFilePath = path.join(storeDir, "height.dat");
-  const heightFileUrls = digPeers.map(
-    (digPeer) => `https://${digPeer}:4159/${storeId}/height.dat`
-  );
-
-  await downloadFileFromUrls(heightFileUrls, heightFilePath, forceDownload);
+  for (const digPeer of digPeers) {
+    try {
+      await downloadFileFromDigPeer(digPeer, "height.dat", heightFilePath, forceDownload);
+      break; // Exit loop if successful
+    } catch (error) {
+      console.warn(`Failed to download height.dat from ${digPeer.ipAddress}, trying next peer...`);
+    }
+  }
 };
 
 // Function to check if a digPeer is synced with the storeId
-const isPeerSynced = async (
-  digPeer: string,
-  storeId: string
-): Promise<boolean> => {
-  return new Promise((resolve) => {
-    const url = `https://${digPeer}:4159/status/${storeId}`;
-    const urlObj = new URL(url);
-
-    const requestOptions = {
-      hostname: urlObj.hostname,
-      port: urlObj.port || 443,
-      path: urlObj.pathname,
-      method: "GET",
-      key: fs.readFileSync(keyPath),
-      cert: fs.readFileSync(certPath),
-      rejectUnauthorized: false, // Allow self-signed certificates
-    };
-
-    const request = https.request(requestOptions, (response) => {
-      if (response.statusCode === 200) {
-        let data = "";
-        response.on("data", (chunk) => {
-          data += chunk;
-        });
-        response.on("end", () => {
-          try {
-            const status = JSON.parse(data);
-            console.log(`${digPeer} sync status:`, status.synced);
-            resolve(status.synced === true);
-          } catch (error) {
-            console.error(`Error parsing response from ${url}:`, error);
-            resolve(false);
-          }
-        });
-      } else {
-        console.warn(
-          `Failed to get sync status from ${url}, status code: ${response.statusCode}`
-        );
-        resolve(false);
-      }
-    });
-
-    request.on("error", (error: any) => {
-      console.error(`Request error for ${url}:`, error);
-      resolve(false);
-    });
-
-    request.end();
-  });
+const isPeerSynced = async (digPeer: DigPeer, storeId: string): Promise<boolean> => {
+  try {
+    const status = await digPeer.getKey(`status/${storeId}`);
+    const parsedStatus = JSON.parse(status);
+    return parsedStatus.synced === true;
+  } catch (error: any) {
+    console.error(`Failed to check sync status for ${digPeer.ipAddress}:`, error.message);
+    return false;
+  }
 };
 
 // Function to filter out peers that are not synced
-const filterSyncedPeers = async (
-  digPeers: string[],
-  storeId: string
-): Promise<string[]> => {
+const filterSyncedPeers = async (digPeers: DigPeer[], storeId: string): Promise<DigPeer[]> => {
   const syncStatuses = await Promise.all(
     digPeers.map((peer) => isPeerSynced(peer, storeId))
   );
@@ -217,12 +84,13 @@ export const pullFilesFromNetwork = async (
 ): Promise<void> => {
   try {
     errorCorrectManifest(`${directoryPath}/${storeId}`);
-    let digPeers = (
-      await sampleCurrentEpochServerCoins(Buffer.from(storeId, "hex"), 10)
-    ).filter((peer) => peer !== publicIp);
-
     const publicIp: string | null | undefined =
       await nconfManager.getConfigValue("publicIp");
+
+    let digPeers = (
+      await sampleCurrentEpochServerCoins(Buffer.from(storeId, "hex"), 10)
+    ).filter((peer) => peer !== publicIp)
+      .map((ip) => new DigPeer(ip, storeId)); // Instantiate DigPeer objects
 
     const rootHistory = await getRootHistory(Buffer.from(storeId, "hex"));
 
@@ -284,10 +152,14 @@ export const pullFilesFromNetwork = async (
       const datFilePath = path.join(storeDir, `${rootHash}.dat`);
 
       // Download the .dat file
-      const datUrls = digPeers.map(
-        (digPeer) => `https://${digPeer}:4159/${storeId}/${rootHash}.dat`
-      );
-      await downloadFileFromUrls(datUrls, datFilePath, forceDownload);
+      for (const digPeer of digPeers) {
+        try {
+          await downloadFileFromDigPeer(digPeer, `${rootHash}.dat`, datFilePath, forceDownload);
+          break; // Exit loop if successful
+        } catch (error) {
+          console.warn(`Failed to download ${rootHash}.dat from ${digPeer.ipAddress}, trying next peer...`);
+        }
+      }
 
       // Load and verify the .dat file content
       const datFileContent = JSON.parse(fs.readFileSync(datFilePath, "utf-8"));
@@ -304,19 +176,14 @@ export const pullFilesFromNetwork = async (
 
         // Files in the store/data directory should not be overwritten if they exist, unless forceDownload is true
         const isInDataDir = filePath.startsWith(path.join(storeDir, "data"));
-        const fileUrls = digPeers.map(
-          (digPeer) =>
-            `https://${digPeer}:4159/${storeId}/${path.relative(
-              storeDir,
-              filePath
-            )}`
-        );
-
-        await downloadFileFromUrls(
-          fileUrls,
-          filePath,
-          forceDownload || !isInDataDir
-        );
+        for (const digPeer of digPeers) {
+          try {
+            await downloadFileFromDigPeer(digPeer, file, filePath, forceDownload || !isInDataDir);
+            break; // Exit loop if successful
+          } catch (error) {
+            console.warn(`Failed to download ${file} from ${digPeer.ipAddress}, trying next peer...`);
+          }
+        }
       }
 
       // Append the processed hash to the manifest file only if it doesn't exist at the current index

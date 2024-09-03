@@ -125,17 +125,19 @@ export const meltServerCoin = async (peer: Peer, serverCoin: CoinData) => {
 
 export const sampleCurrentEpochServerCoins = async (
   storeId: Buffer,
-  sampleSize: number = 5
-) => {
+  sampleSize: number = 5,
+  blacklist: string[] = []
+): Promise<string[]> => {
   const epoch = getCurrentEpoch();
-  return sampleServerCoinsByEpoch(epoch, storeId, sampleSize);
+  return sampleServerCoinsByEpoch(epoch, storeId, sampleSize, blacklist);
 };
 
 export const sampleServerCoinsByEpoch = async (
   epoch: number,
   storeId: Buffer,
-  sampleSize: number = 5
-) => {
+  sampleSize: number = 5,
+  blacklist: string[] = []
+): Promise<string[]> => {
   const epochBasedHint = morphLauncherId(storeId, BigInt(epoch));
 
   const peer = await getPeer();
@@ -155,7 +157,10 @@ export const sampleServerCoinsByEpoch = async (
 
   for (const coinState of filteredCoinStates) {
     const serverCoin = await peer.fetchServerCoin(coinState, maxClvmCost);
-    serverCoinPeers.add(serverCoin.memoUrls[0]);
+    const peerUrl = serverCoin.memoUrls[0];
+    if (!blacklist.includes(peerUrl)) {
+      serverCoinPeers.add(peerUrl);
+    }
   }
 
   // Convert the Set back to an array if needed

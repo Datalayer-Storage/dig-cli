@@ -412,14 +412,16 @@ export const getLocalRootHistory = async (): Promise<
   }));
 };
 
-export const validateStore = async (): Promise<boolean> => {
-  const storeId = await getActiveStoreId();
-
+export const validateStore = async (storeId?: Buffer | null): Promise<boolean> => {
   if (!storeId) {
-    console.error("No launcher ID found in the current directory");
-    return false;
-  }
+    storeId = await getActiveStoreId();
 
+    if (!storeId) {
+      console.error("No launcher ID found in the current directory");
+      return false;
+    }
+  }
+  
   const rootHistory = await getRootHistory(storeId);
 
   if (process.env.DIG_DEBUG == "1") {

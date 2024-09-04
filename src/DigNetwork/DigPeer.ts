@@ -6,6 +6,17 @@ import { IncentiveServer } from "./IncentiveServer";
 import { getRootHistory } from "../blockchain/datastore";
 import { DataIntegrityTree } from "../DataIntegrityTree";
 import { getFilePathFromSha256 } from "../utils/hashUtils";
+import {
+  sendXch,
+  addressToPuzzleHash,
+  signCoinSpends,
+  getCoinId,
+} from "datalayer-driver";
+import { getPeer } from "../blockchain/peer";
+import { Wallet } from "../blockchain";
+import { selectUnspentCoins } from "../blockchain/coins";
+import { MIN_HEIGHT, MIN_HEIGHT_HEADER_HASH } from "../utils/config";
+import { waitForConfirmation } from "../blockchain/coins";
 
 export class DigPeer {
   private ipAddress: string;
@@ -61,9 +72,7 @@ export class DigPeer {
       }
 
       // Fetch the manifest.dat file content from the propagation server
-      const manifestContent = await this.propagationServer.getStoreData(
-        "manifest.dat"
-      );
+      const manifestContent = await this.contentServer.getKey("manifest.dat");
       const manifestHashes: string[] = manifestContent
         .split("\n")
         .filter(Boolean);
@@ -82,7 +91,7 @@ export class DigPeer {
 
       // Fetch the .dat file content for the specified root hash from the content server
       const datFileContent = JSON.parse(
-        await this.propagationServer.getStoreData(`${rootHash}.dat`)
+        await this.contentServer.getKey(`${rootHash}.dat`)
       );
 
       if (datFileContent.root !== rootHash) {
@@ -105,9 +114,9 @@ export class DigPeer {
 
         // Stream the file from the propagation server and calculate the SHA256 hash on the fly
         const hash = crypto.createHash("sha256");
-        const dataPath = getFilePathFromSha256(fileData.sha256, "data");
-        const fileStream: Readable =
-          await this.propagationServer.streamStoreData(dataPath);
+        const fileStream: Readable = await this.contentServer.streamKey(
+          Buffer.from(key, "hex").toString("utf-8")
+        );
 
         await new Promise<void>((resolve, reject) => {
           fileStream.on("data", (chunk) => {
@@ -130,7 +139,7 @@ export class DigPeer {
           });
         });
 
-        // Perform tree integrity validation
+        // Perform tree integrity validation using the datFileContent and the root hash
         const treeCheck = DataIntegrityTree.validateKeyIntegrityWithForeignTree(
           key,
           fileData.sha256,
@@ -182,9 +191,34 @@ export class DigPeer {
     }
   }
 
-  public async sendPayment(amount: number): Promise<void> {
+  public async sendPayment(walletName: string, amount: number): Promise<void> {
     const paymentAddress = await this.contentServer.getPaymentAddress();
     console.log(`Sending ${amount} XCH to ${paymentAddress}...`);
-    // Implement the payment logic here
+    const wallet = await Wallet.load(walletName);
+    const publicSyntheticKey = await wallet.getPublicSyntheticKey();
+    const peer = await getPeer();
+    const coins = await selectUnspentCoins(peer, BigInt(amount), BigInt(1000));
+    const paymentAddressPuzzleHash = addressToPuzzleHash(paymentAddress);
+    const coinSpends = await sendXch(
+      publicSyntheticKey,
+      coins,
+      paymentAddressPuzzleHash,
+      BigInt(amount),
+      BigInt(1000)
+    );
+
+    const sig = signCoinSpends(
+      coinSpends,
+      [await wallet.getPrivateSyntheticKey()],
+      false
+    );
+
+    const err = await peer.broadcastSpend(coinSpends, [sig]);
+
+    if (err) {
+      throw new Error(err);
+    }
+
+    await waitForConfirmation(getCoinId(coins[0]));
   }
 }

@@ -5,7 +5,7 @@ import { getOrCreateSSLCerts } from "../utils/ssl";
 import { promptCredentials } from "../utils/credentialsUtils";
 import { waitForPromise } from "../utils/spinnerUtils";
 import { createKeyOwnershipSignature } from "../blockchain/signature";
-import { getPublicSyntheticKey } from "../blockchain/keys";
+import { getPublicSyntheticKey } from "../blockchain/Wallet";
 import { Readable } from "stream";
 import { getFilePathFromSha256 } from "../utils/hashUtils";
 

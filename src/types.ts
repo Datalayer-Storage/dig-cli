@@ -66,5 +66,6 @@ export interface IncentiveProgramData {
   paymentTotalToDate?: number;
   active: boolean;
   lastEpochPaid?: number;
+  walletName: string;
 }
 

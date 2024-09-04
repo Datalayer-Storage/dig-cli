@@ -1,9 +1,4 @@
-import {
-  getOrCreateMnemonic,
-  deleteMnemonic,
-  getMnemonic,
-  importMnemonic,
-} from "../blockchain/mnemonic";
+import { Wallet } from "../blockchain";
 import {
   commit,
   push,
@@ -13,18 +8,17 @@ import {
   init,
   validate,
   login,
-  syncRemoteSeed as _syncRemoteSeed,
-  setRemoteSeed as _setRemoteSeed,
+  syncRemoteSeed,
+  setRemoteSeed,
   generateEntropyValue,
-  subscribeToStore as _subscribeToStore,
-  unsubscribeToStore
+  subscribeToStore,
+  unsubscribeToStore,
 } from "../actions";
 import { CreateStoreUserInputs } from "../types";
 import { logout } from "../actions/logout";
 import { startContentServer } from "../content_server/server";
 import { checkStoreWritePermissions } from "../actions";
 import { getActiveStoreId } from "../utils/config";
-
 
 // Command handlers
 export const handlers = {
@@ -63,12 +57,12 @@ export const handlers = {
   setRemote: async (peer: string) => {
     await setRemote(peer);
   },
-  syncRemoteSeed: async () => {
+  syncRemoteSeed: async (walletName: string = 'main') => {
     console.log("Syncing remote seed");
-    await _syncRemoteSeed();
+    await syncRemoteSeed(walletName);
   },
-  setRemoteSeed: async (seed: string) => {
-    await _setRemoteSeed(seed);
+  setRemoteSeed: async (walletName: string, seed: string) => {
+    await setRemoteSeed(walletName, seed);
   },
   validateStore: async () => {
     await validate();
@@ -77,7 +71,7 @@ export const handlers = {
     await generateEntropyValue();
   },
   subscribeToStore: async (storeId: string) => {
-    await _subscribeToStore(storeId);
+    await subscribeToStore(storeId);
   },
   unsubscribeToStore: async (storeId: string) => {
     await unsubscribeToStore(storeId);
@@ -97,19 +91,19 @@ export const handlers = {
         console.error("Unknown store action");
     }
   },
-  manageKeys: async (action: string, providedMnemonic?: string) => {
+  manageKeys: async (action: string, providedMnemonic?: string, walletName: string = 'main') => {
     switch (action) {
       case "import":
-        await importMnemonic(providedMnemonic);
+        await Wallet.importWallet(walletName, providedMnemonic);
         break;
       case "generate":
-        await getOrCreateMnemonic();
+        await Wallet.createNewWallet(walletName);
         break;
       case "delete":
-        await deleteMnemonic();
+        await Wallet.deleteWallet(walletName);
         break;
       case "show":
-        console.log(await getMnemonic());
+        console.log((await Wallet.load(walletName)).getMnemonic());
         break;
       default:
         console.error("Unknown keys action");

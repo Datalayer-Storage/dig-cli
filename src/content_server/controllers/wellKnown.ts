@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { getOwnerPublicKey } from "../../blockchain/keys";
+import { getOwnerPublicKey } from "../../blockchain/Wallet";
 import { getStoresList } from "../../utils/config";
 
 /**

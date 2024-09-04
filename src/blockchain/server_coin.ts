@@ -12,8 +12,8 @@ import {
 } from "datalayer-driver";
 import { getPeer } from "./peer";
 import { selectUnspentCoins, waitForConfirmation } from "./coins";
-import { getPublicSyntheticKey, getPrivateSyntheticKey } from "./keys";
-import { NconfManager } from "../utils/nconfManager";
+import { getPublicSyntheticKey, getPrivateSyntheticKey } from "./Wallet";
+import { NconfManager } from "../utils/NconfManager";
 import { calculateFeeForCoinSpends } from "./coins";
 import { CoinData, ServerCoinData } from "../types";
 import { peer } from ".";

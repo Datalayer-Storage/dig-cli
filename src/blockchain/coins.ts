@@ -6,7 +6,7 @@ import {
   CoinSpend,
   getCoinId,
 } from "datalayer-driver";
-import { getOwnerPuzzleHash } from "./keys";
+import { getOwnerPuzzleHash } from "./Wallet";
 import { MIN_HEIGHT, MIN_HEIGHT_HEADER_HASH } from "../utils/config";
 import { createSpinner } from "nanospinner";
 import { getPeer } from "./peer";

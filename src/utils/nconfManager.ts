@@ -1,8 +1,8 @@
-import nconf from 'nconf';
-import fs from 'fs-extra';
-import path from 'path';
-import os from 'os';
-import { USER_DIR_PATH }  from './config';
+import nconf from "nconf";
+import fs from "fs-extra";
+import path from "path";
+import os from "os";
+import { USER_DIR_PATH } from "./config";
 
 const CONF_FOLDER_PATH = process.env.DIG_FOLDER_PATH || USER_DIR_PATH;
 
@@ -55,5 +55,11 @@ export class NconfManager {
 
   public async configExists(): Promise<boolean> {
     return await fs.pathExists(this.configFilePath);
+  }
+
+  // Method to get the full configuration as a key-value object
+  public async getFullConfig(): Promise<Record<string, any>> {
+    await this.initializeConfig();
+    return nconf.get() || {};
   }
 }

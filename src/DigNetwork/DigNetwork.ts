@@ -7,7 +7,7 @@ import { getDeltaFiles } from "../utils/deltaUtils";
 import { getFilePathFromSha256 } from "../utils/hashUtils";
 import { sampleCurrentEpochServerCoins } from "../blockchain/server_coin";
 import { getRootHistory } from "../blockchain/datastore";
-import { NconfManager } from "../utils/nconfManager";
+import { NconfManager } from "../utils/NconfManager";
 import { errorCorrectManifest } from "../utils/directoryUtils";
 import { DIG_FOLDER_PATH } from "../utils/config";
 

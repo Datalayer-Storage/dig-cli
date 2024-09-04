@@ -12,7 +12,7 @@ import {
 } from "../../blockchain/datastore";
 import { Mutex } from "async-mutex";
 import { DigNetwork } from "../../DigNetwork";
-import { NconfManager } from "../../utils/nconfManager";
+import { NconfManager } from "../../utils/NconfManager";
 import { ensureServerCoinExists, meltOutdatedEpochs } from "../../blockchain/server_coin";
 
 const mutex = new Mutex();

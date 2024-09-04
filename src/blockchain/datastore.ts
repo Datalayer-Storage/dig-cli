@@ -15,11 +15,7 @@ import {
   syntheticKeyToPuzzleHash,
 } from "datalayer-driver";
 import { getPeer } from "./peer";
-import {
-  getPublicSyntheticKey,
-  getPrivateSyntheticKey,
-  getOwnerPuzzleHash,
-} from "./keys";
+import { Wallet } from "./Wallet";
 import {
   NETWORK_AGG_SIG_DATA,
   MIN_HEIGHT,
@@ -43,7 +39,8 @@ export const mintDataLayerStore = async (
 ): Promise<DataStore> => {
   try {
     const peer = await getPeer();
-    const publicSyntheticKey = await getPublicSyntheticKey();
+    const wallet = await Wallet.load('main');
+    const publicSyntheticKey = await wallet.getPublicSyntheticKey();
     const ownerSyntheicPuzzleHash =
       syntheticKeyToPuzzleHash(publicSyntheticKey);
     const storeCreationCoins = await selectUnspentCoins(
@@ -109,7 +106,7 @@ export const mintDataLayerStore = async (
 
     const sig = signCoinSpends(
       storeCreationResponse.coinSpends,
-      [await getPrivateSyntheticKey()],
+      [await wallet.getPrivateSyntheticKey()],
       false
     );
 
@@ -295,7 +292,8 @@ export const hasMetadataWritePermissions = async (
     if (publicSyntheticKey) {
       ownerPuzzleHash = syntheticKeyToPuzzleHash(publicSyntheticKey);
     } else {
-      ownerPuzzleHash = await getOwnerPuzzleHash();
+      const wallet = await Wallet.load("main");
+      ownerPuzzleHash = await wallet.getOwnerPuzzleHash();
     }
 
     const isStoreOwner = latestStore.ownerPuzzleHash.equals(ownerPuzzleHash);
@@ -339,7 +337,8 @@ export const updateDataStoreMetadata = async ({
   const { latestStore } = await getLatestStoreInfo(storeId);
 
   const peer = await getPeer();
-  const ownerPublicKey = await getPublicSyntheticKey();
+  const wallet = await Wallet.load("main");
+  const ownerPublicKey = await wallet.getPublicSyntheticKey();
 
   // TODO: to make this work for all users we need a way to get the authorized writer public key as well and not just assume its the owner
   const updateStoreResponse = updateStoreMetadata(
@@ -371,7 +370,7 @@ export const updateDataStoreMetadata = async ({
 
   const sig = signCoinSpends(
     combinedCoinSpends,
-    [await getPrivateSyntheticKey()],
+    [await wallet.getPrivateSyntheticKey()],
     false
   );
 
@@ -412,7 +411,9 @@ export const getLocalRootHistory = async (): Promise<
   }));
 };
 
-export const validateStore = async (storeId?: Buffer | null): Promise<boolean> => {
+export const validateStore = async (
+  storeId?: Buffer | null
+): Promise<boolean> => {
   if (!storeId) {
     storeId = await getActiveStoreId();
 
@@ -421,7 +422,7 @@ export const validateStore = async (storeId?: Buffer | null): Promise<boolean> =
       return false;
     }
   }
-  
+
   const rootHistory = await getRootHistory(storeId);
 
   if (process.env.DIG_DEBUG == "1") {

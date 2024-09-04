@@ -1,5 +1,5 @@
 import { signMessage, verifySignedMessage } from "datalayer-driver";
-import { getPrivateSyntheticKey } from "./keys";
+import { getPrivateSyntheticKey } from "./Wallet";
 
 
 export const createKeyOwnershipSignature = async (nonce: string): Promise<string> => {

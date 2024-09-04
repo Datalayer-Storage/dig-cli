@@ -1,6 +1,6 @@
 import { generateHighEntropyValue } from "../utils/credentialsUtils";
 import inquirer from "inquirer";
-import { NconfManager } from "../utils/nconfManager";
+import { NconfManager } from "../utils/NconfManager";
 import { encryptData } from "../utils/encryption";
 import { encryptAndStoreCredentials } from "../utils/credentialsUtils";
 

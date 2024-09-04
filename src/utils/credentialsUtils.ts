@@ -1,6 +1,6 @@
 import * as readline from "readline";
 import crypto from "crypto";
-import { NconfManager } from "../utils/nconfManager";
+import { NconfManager } from "./NconfManager";
 import { EncryptedData, encryptData, decryptData } from "../utils/encryption";
 import { Credentials } from "../types";
 

@@ -1,13 +1,5 @@
-import { NconfManager } from "../../utils/nconfManager";
-
-interface IncentiveProgramData {
-  storeId: string;
-  xchRewardPerEpoch: number;
-  totalRoundsCompleted?: number;
-  paymentTotalToDate?: number;
-  active: boolean;
-  lastEpochPaid?: number;
-}
+import { NconfManager } from "../../utils/NconfManager";
+import { IncentiveProgramData } from "../../types";
 
 class IncentiveProgram {
   private data: IncentiveProgramData;
@@ -61,6 +53,10 @@ class IncentiveProgram {
 
   public get lastEpochPaid(): number | undefined {
     return this.data.lastEpochPaid;
+  }
+
+  public get walletName(): string {
+    return this.data.walletName;
   }
 
   // Method to activate the incentive program

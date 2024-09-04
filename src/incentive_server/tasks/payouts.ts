@@ -78,7 +78,7 @@ const runIncentiveProgram = async (program: IncentiveProgram, currentEpoch: numb
     // Send payout to winning peer.
     console.log(`Sending ${rewardThisRound} XCH to ${winningPeer.IpAddress} for store ${program.storeId}...`);
 
-    await winningPeer.sendPayment(rewardThisRound);
+    await winningPeer.sendPayment(program.walletName, rewardThisRound);
 
     await program.setLastEpochPaid(currentEpoch);
     await program.incrementTotalRoundsCompleted(1);

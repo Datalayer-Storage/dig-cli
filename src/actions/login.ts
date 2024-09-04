@@ -1,6 +1,6 @@
 import { CONFIG_FILE_PATH, loadDigConfig } from "../utils/config";
 import { promptCredentials, encryptAndStoreCredentials, retrieveAndDecryptCredentials } from "../utils/credentialsUtils";
-import { NconfManager } from "../utils/nconfManager";
+import { NconfManager } from "../utils/NconfManager";
 
 export const login = async (username = '', password = '') => {
   try {

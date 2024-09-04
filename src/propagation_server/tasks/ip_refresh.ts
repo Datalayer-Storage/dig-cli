@@ -1,6 +1,6 @@
 import { SimpleIntervalJob, Task } from "toad-scheduler";
 import { getPublicIpAddress } from "../../utils/network";
-import { NconfManager } from "../../utils/nconfManager";
+import { NconfManager } from "../../utils/NconfManager";
 import { Mutex } from "async-mutex";
 
 const mutex = new Mutex();

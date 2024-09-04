@@ -1,5 +1,6 @@
 import http from "http";
 import { URL } from "url";
+import { Readable } from "stream";
 
 export class ContentServer {
   private ipAddress: string;
@@ -66,6 +67,47 @@ export class ContentServer {
   public async headStore(): Promise<boolean> {
     const url = `http://${this.ipAddress}:${ContentServer.port}/${this.storeId}`;
     return this.head(url);
+  }
+
+  public streamKey(key: string): Promise<Readable> {
+    return new Promise((resolve, reject) => {
+      const url = `http://${this.ipAddress}:${ContentServer.port}/${this.storeId}/${key}`;
+      const urlObj = new URL(url);
+
+      const requestOptions = {
+        hostname: urlObj.hostname,
+        port: urlObj.port || ContentServer.port,
+        path: urlObj.pathname + urlObj.search,
+        method: "GET",
+      };
+
+      const request = http.request(requestOptions, (response) => {
+        if (response.statusCode === 200) {
+          resolve(response); // Resolve with the readable stream
+        } else if (response.statusCode === 301 || response.statusCode === 302) {
+          // Handle redirects
+          const redirectUrl = response.headers.location;
+          if (redirectUrl) {
+            this.streamKey(redirectUrl).then(resolve).catch(reject);
+          } else {
+            reject(new Error("Redirected without a location header"));
+          }
+        } else {
+          reject(
+            new Error(
+              `Failed to retrieve data from ${url}. Status code: ${response.statusCode}`
+            )
+          );
+        }
+      });
+
+      request.on("error", (error) => {
+        console.error(`Request error for ${url}:`, error);
+        reject(error);
+      });
+
+      request.end();
+    });
   }
 
   // Helper method to perform HEAD requests

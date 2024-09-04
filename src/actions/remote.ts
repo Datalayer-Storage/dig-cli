@@ -8,7 +8,7 @@ import * as https from "https";
 import { ensureDigConfig, DIG_FOLDER_PATH } from "../utils/config";
 import { getOrCreateSSLCerts } from "../utils/ssl";
 import { promptCredentials } from "../utils";
-import { getMnemonic } from "../blockchain/mnemonic";
+import { Wallet } from "../blockchain";
 import { sampleCurrentEpochServerCoins } from "../blockchain/server_coin";
 
 export const setRemote = (remote: string): void => {
@@ -19,7 +19,7 @@ export const setActiveStore = (storeId: string): void => {
   _setActiveStore(storeId);
 };
 
-const syncOrSetRemoteSeed = async (mnemonic: string): Promise<void> => {
+const syncOrSetRemoteSeed = async (walletName: string, mnemonic: string): Promise<void> => {
   const config = await ensureDigConfig(DIG_FOLDER_PATH);
 
   if (!config?.remote) {
@@ -43,7 +43,7 @@ const syncOrSetRemoteSeed = async (mnemonic: string): Promise<void> => {
       .set("Authorization", `Basic ${auth}`)
       .set("Content-Type", "application/json")
       .agent(agent) // Use the custom HTTPS agent
-      .send({ mnemonic });
+      .send({ mnemonic, walletName });
 
     if (response.ok) {
       console.log("Seed phrase successfully set on remote.");
@@ -56,18 +56,19 @@ const syncOrSetRemoteSeed = async (mnemonic: string): Promise<void> => {
   }
 };
 
-export const syncRemoteSeed = async (): Promise<void> => {
-  const mnemonic = await getMnemonic();
+export const syncRemoteSeed = async (walletName: string = 'main'): Promise<void> => {
+  const wallet = await Wallet.load(walletName);
+  const mnemonic = wallet.getMnemonic();
 
   if (!mnemonic) {
     throw new Error("No seed phrase found, please create one first");
   }
 
-  await syncOrSetRemoteSeed(mnemonic);
+  await syncOrSetRemoteSeed(walletName, mnemonic);
 };
 
-export const setRemoteSeed = async (mnemonic: string): Promise<void> => {
-  await syncOrSetRemoteSeed(mnemonic);
+export const setRemoteSeed = async (walletName: string = 'main', mnemonic: string): Promise<void> => {
+  await syncOrSetRemoteSeed(walletName, mnemonic);
 };
 
 export const subscribeToStore = async (storeId: string): Promise<void> => {

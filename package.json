@@ -44,7 +44,7 @@
     "chia-wallet": "^1.0.18",
     "cli-progress": "^3.12.0",
     "crypto-js": "^4.2.0",
-    "datalayer-driver": "^0.1.19",
+    "datalayer-driver": "^0.1.20",
     "express": "^4.19.2",
     "fs-extra": "^11.2.0",
     "ignore": "^5.3.2",

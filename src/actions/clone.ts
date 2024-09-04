@@ -1,28 +1,43 @@
 import fs from "fs";
 import path from "path";
-import { pullFilesFromNetwork } from "../utils/download";
-import { STORE_PATH } from "../utils/config";
+import { DigNetwork } from "../DigNetwork"; // Use the DigNetwork class
+import { STORE_PATH, DIG_FOLDER_PATH } from "../utils/config";
 import { waitForPromise } from "../utils";
 import { validateStore } from "../blockchain/datastore";
 
 export const clone = async (storeId: string): Promise<void> => {
   console.log(`Cloning store: ${storeId}`);
 
+  const storeDir = path.join(DIG_FOLDER_PATH, "stores", storeId);
+
+  // Check if the store directory already exists
+  if (fs.existsSync(storeDir)) {
+    console.error(`Store with ID ${storeId} already exists at ${storeDir}.`);
+    process.exit(1); // Exit the process with an error code
+  }
+
   try {
-    // Pull files from the remote
-    await pullFilesFromNetwork(storeId, STORE_PATH);
+    // Create an instance of DigNetwork
+    const digNetwork = new DigNetwork(storeId);
+
+    // Pull files from the network using DigNetwork
+    await digNetwork.downloadFiles(true, true);
+
   } catch (error: any) {
     console.error(error.message);
     process.exit(1); // Exit the process with an error code
   }
 
   try {
-    let storeIntegrityCheck = await waitForPromise(
+    // Perform the store integrity check after pulling files
+    const storeIntegrityCheck = await waitForPromise(
       () => validateStore(),
       "Checking store integrity...",
       "Store integrity check passed.",
       "Store integrity check failed."
     );
+
+    // Handle integrity check failure
     if (!storeIntegrityCheck) {
       console.error("Store integrity check failed. Reverting Clone");
       fs.rmdirSync(path.resolve(STORE_PATH, storeId), { recursive: true });

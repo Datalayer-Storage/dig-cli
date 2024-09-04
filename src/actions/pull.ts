@@ -1,13 +1,17 @@
-
 import fs from "fs";
-import { pullFilesFromNetwork } from "../utils/download";
-import { STORE_PATH, CONFIG_FILE_PATH, getActiveStoreId} from "../utils/config";
+import { DigNetwork } from "../DigNetwork"; // Import DigNetwork class
+import { STORE_PATH, getActiveStoreId } from "../utils/config";
 
 export const pull = async (): Promise<void> => {
+    // Retrieve the active storeId
     const storeId = await getActiveStoreId();
     if (!storeId) {
         throw new Error("Store not found.");
     }
     
-    await pullFilesFromNetwork(storeId.toString('hex'), STORE_PATH);
+    // Instantiate the DigNetwork with the storeId
+    const digNetwork = new DigNetwork(storeId.toString('hex'));
+    
+    // Pull files from the network using DigNetwork's downloadFiles method
+    await digNetwork.downloadFiles(false, true);
 };

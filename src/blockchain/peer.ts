@@ -114,7 +114,7 @@ const createPeerProxy = (
           try {
             return await originalMethod.apply(target, args);
           } catch (error: any) {
-            if (error.message.includes("AlreadyClosed")) {
+            if (error.message.includes("WebSocket")) {
               cachedPeer = null; // Invalidate the cached peer
 
               const newPeer = await getPeer(); // Get a new peer instance

@@ -1,24 +1,18 @@
 import * as fs from "fs";
-import { promptCredentials, waitForPromise } from "../utils";
 import {
   DIG_FOLDER_PATH,
   getActiveStoreId,
   setRemote,
   CONFIG_FILE_PATH,
   ensureDigConfig,
-  STORE_PATH,
 } from "../utils/config";
 import { getLocalRootHistory } from "../blockchain/datastore";
-import { uploadDirectory } from "../utils/upload";
+import { DigNetwork } from "../DigNetwork";
+import { DigPeer } from "../DigNetwork";
 import { promptForRemote } from "../prompts";
-import * as https from "https";
-import { URL } from "url";
-import { getOrCreateSSLCerts } from "../utils/ssl";
 import { DigConfig } from "../types";
 
-// Retrieve or generate SSL certificates
-const { certPath, keyPath } = getOrCreateSSLCerts();
-
+// Check that required files exist
 const checkRequiredFiles = (): void => {
   if (!fs.existsSync(DIG_FOLDER_PATH)) {
     throw new Error(".dig folder not found. Please run init first.");
@@ -34,65 +28,6 @@ const getConfig = async (): Promise<DigConfig> => {
   return config;
 };
 
-// Helper function to get upload details using https
-const getUploadDetails = async (
-  remote: string,
-  username: string,
-  password: string
-) => {
-  return waitForPromise(
-    () => {
-      return new Promise<
-        | { lastUploadedHash: string; generationIndex: number; nonce: string }
-        | false
-      >((resolve, reject) => {
-        const url = new URL(remote);
-
-        const options = {
-          hostname: url.hostname,
-          port: url.port || 4159,
-          path: url.pathname,
-          method: "HEAD",
-          key: fs.readFileSync(keyPath),
-          cert: fs.readFileSync(certPath),
-          headers: {
-            Authorization: `Basic ${Buffer.from(
-              `${username}:${password}`
-            ).toString("base64")}`,
-          },
-          rejectUnauthorized: false,
-        };
-
-        const req = https.request(options, (res) => {
-          if (res.statusCode === 200) {
-            resolve({
-              lastUploadedHash: res.headers["x-generation-hash"] as string,
-              generationIndex: Number(res.headers["x-generation-index"]),
-              nonce: res.headers["x-nonce"] as string,
-            });
-          } else {
-            reject(
-              new Error(
-                `Failed to perform preflight check: ${res.statusCode} ${res.statusMessage}`
-              )
-            );
-          }
-        });
-
-        req.on("error", (err) => {
-          console.error(err.message);
-          resolve(false);
-        });
-
-        req.end();
-      });
-    },
-    "Performing remote preflight",
-    "Preflight succeeded.",
-    "Error on preflight."
-  );
-};
-
 // Main push function
 export const push = async (): Promise<void> => {
   try {
@@ -106,7 +41,6 @@ export const push = async (): Promise<void> => {
       config.remote = remote;
     }
 
-    const { username, password } = await promptCredentials(config.remote);
     const storeId = await getActiveStoreId();
 
     if (!storeId) {
@@ -126,21 +60,11 @@ export const push = async (): Promise<void> => {
     const lastLocalRootHash = rootHistory[rootHistory.length - 1].root_hash;
     const localGenerationIndex = rootHistory.length - 1;
 
-    const standardOriginEndpoint = `https://${config.remote}/${storeId.toString(
-      "hex"
-    )}`;
+    // Instantiate DigPeer
+    const digPeer = new DigPeer(config.remote, storeId.toString("hex"));
 
-    const preflight = await getUploadDetails(
-      standardOriginEndpoint,
-      username,
-      password
-    );
-
-    if (!preflight) {
-      throw new Error("Failed to perform preflight check.");
-    }
-
-    const { lastUploadedHash, generationIndex, nonce } = preflight;
+    // Preflight check is handled internally by PropagationServer if needed
+    const { lastUploadedHash, generationIndex } = await digPeer.propagationServer.getUploadDetails();
 
     // Handle conditions based on the upload details
     if (
@@ -148,7 +72,7 @@ export const push = async (): Promise<void> => {
       generationIndex === localGenerationIndex
     ) {
       console.log(
-        "The repository seems to be currupepted. Please pull the latest changes before pushing."
+        "The repository seems to be corrupted. Please pull the latest changes before pushing."
       );
       return;
     }
@@ -170,15 +94,9 @@ export const push = async (): Promise<void> => {
       );
     }
 
-    await uploadDirectory(
-      config.remote,
-      STORE_PATH,
-      storeId.toString("hex"),
-      username,
-      password,
-      nonce,
-      generationIndex
-    );
+    // Instantiate DigNetwork and perform the upload
+    const digNetwork = new DigNetwork(storeId.toString("hex"));
+    await digNetwork.uploadStore(digPeer, generationIndex);
   } catch (error: any) {
     console.error(`Push failed: ${error.message}`);
   } finally {

@@ -11,7 +11,7 @@ import {
   validateStore,
 } from "../../blockchain/datastore";
 import { Mutex } from "async-mutex";
-import { pullFilesFromNetwork } from "../../utils/download";
+import { DigNetwork } from "../../DigNetwork";
 import { NconfManager } from "../../utils/nconfManager";
 import { ensureServerCoinExists, meltOutdatedEpochs } from "../../blockchain/server_coin";
 
@@ -33,19 +33,6 @@ const syncStore = async (storeId: string): Promise<void> => {
 
     console.log(`Store ${storeId} is out of date. Syncing...`);
     await syncStoreFromNetwork(storeId);
-
-    /* This might cause problems when the latest root isnt on any available peers yet
-    const isValid = await validateStoreIntegrity(storeId);
-    if (isValid) {
-      console.log(`Store ${storeId} synced successfully.`);
-    } else {
-      console.error(
-        `Store integrity check failed for ${storeId}. Resyncing from scratch...`
-      );
-      await resyncStoreFromScratch(storeId);
-      console.log(`Resync completed for store ${storeId}.`);
-    }
-      */
   } catch (error: any) {
     console.trace(`Error processing store ${storeId}: ${error.message}`);
   } finally {
@@ -64,9 +51,7 @@ const isStoreUpToDate = async (storeId: string): Promise<boolean> => {
     return false;
   }
 
-  const manifest = fs
-    .readFileSync(getManifestFilePath(storeId), "utf-8")
-    .trim();
+  const manifest = fs.readFileSync(manifestFilePath, "utf-8").trim();
   const manifestRootHashes = manifest.split("\n");
 
   return rootHistory.length === manifestRootHashes.length;
@@ -75,7 +60,8 @@ const isStoreUpToDate = async (storeId: string): Promise<boolean> => {
 const syncStoreFromNetwork = async (storeId: string): Promise<void> => {
   try {
     console.log(`Attempting to sync store ${storeId} from the network...`);
-    await pullFilesFromNetwork(storeId, STORE_PATH, false, false);
+    const digNetwork = new DigNetwork(storeId);
+    await digNetwork.downloadFiles(false, true);
   } catch (error: any) {
     console.warn(
       `Initial sync attempt failed for ${storeId}: ${error.message}`
@@ -85,24 +71,9 @@ const syncStoreFromNetwork = async (storeId: string): Promise<void> => {
       return;
     }
     console.log(`Retrying sync for store ${storeId} with forced download...`);
-    await pullFilesFromNetwork(storeId, STORE_PATH, true, false);
+    const digNetwork = new DigNetwork(storeId);
+    await digNetwork.downloadFiles(true, true);
   }
-};
-
-const validateStoreIntegrity = async (storeId: string): Promise<boolean> => {
-  console.log(`Validating integrity for store ${storeId}...`);
-  const isValid = await validateStore();
-  if (isValid) {
-    console.log(`Store ${storeId} passed integrity check.`);
-  } else {
-    console.warn(`Store ${storeId} failed integrity check.`);
-  }
-  return isValid;
-};
-
-const resyncStoreFromScratch = async (storeId: string): Promise<void> => {
-  console.log(`Resyncing store ${storeId} from scratch...`);
-  await pullFilesFromNetwork(storeId, STORE_PATH, true, false);
 };
 
 const finalizeStoreSync = async (storeId: string): Promise<void> => {
@@ -146,9 +117,6 @@ const task = new Task("sync-stores", async () => {
           await syncStore(storeId);
           if (publicIp) {
             await ensureServerCoinExists(storeId, publicIp);
-            // By melting after the new epoch is ensured there is no period where there
-            // would be no coin for the store, downside is that more XCH is required in the wallet
-            // to handle the small period where both are locked up
             await meltOutdatedEpochs(storeId, publicIp);
           } else {
             console.warn(
@@ -169,7 +137,6 @@ const task = new Task("sync-stores", async () => {
 
 const job = new SimpleIntervalJob(
   {
-    //seconds: 300,
     seconds: 60,
     runImmediately: true,
   },

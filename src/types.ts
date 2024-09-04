@@ -58,3 +58,13 @@ export interface ServerCoinData {
   createdAt: string; // ISO date string
   epoch: number;
 }
+
+export interface IncentiveProgramData {
+  storeId: string;
+  xchRewardPerEpoch: number;
+  totalRoundsCompleted?: number;
+  paymentTotalToDate?: number;
+  active: boolean;
+  lastEpochPaid?: number;
+}
+

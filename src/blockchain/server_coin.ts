@@ -149,7 +149,7 @@ export const sampleServerCoinsByEpoch = async (
   );
 
   const filteredCoinStates = hintedCoinStates.filter(
-    (coinState) => coinState.coin.amount > serverCoinCollateral
+    (coinState) => coinState.coin.amount >= serverCoinCollateral
   );
 
   // Use a Set to ensure uniqueness
@@ -161,6 +161,10 @@ export const sampleServerCoinsByEpoch = async (
     if (!blacklist.includes(peerUrl)) {
       serverCoinPeers.add(peerUrl);
     }
+  }
+
+  if (process.env.DIG_DEBUG === "1") {
+    console.log("Server Coin Peers: ", serverCoinPeers);
   }
 
   // Convert the Set back to an array if needed

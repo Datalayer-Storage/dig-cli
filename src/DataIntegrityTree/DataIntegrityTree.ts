@@ -97,7 +97,10 @@ class DataIntegrityTree {
       if (manifest.includes(options.rootHash)) {
         this.tree = this.deserializeTree(options.rootHash);
       } else {
-        throw new DataLayerError(404, `Root hash ${options.rootHash} not found`);
+        throw new DataLayerError(
+          404,
+          `Root hash ${options.rootHash} not found`
+        );
       }
     } else {
       this.tree = this._loadLatestTree();
@@ -696,6 +699,70 @@ class DataIntegrityTree {
         reject(err);
       });
     });
+  }
+
+  /**
+   * Static method to validate key integrity using a foreign Merkle tree.
+   * Verifies if a given SHA-256 hash for a key exists within the foreign tree and checks if the root hash matches.
+   *
+   * @param key - The hexadecimal key of the file.
+   * @param sha256 - The SHA-256 hash of the file.
+   * @param serializedTree - The foreign serialized Merkle tree.
+   * @param expectedRootHash - The expected root hash of the Merkle tree.
+   * @returns A boolean indicating if the SHA-256 is present in the foreign tree and the root hash matches.
+   */
+  static validateKeyIntegrityWithForeignTree(
+    key: string,
+    sha256: string,
+    serializedTree: object,
+    expectedRootHash: string
+  ): boolean {
+    if (!isHexString(key)) {
+      throw new Error("key must be a valid hex string");
+    }
+    if (!isHexString(sha256)) {
+      throw new Error("sha256 must be a valid hex string");
+    }
+    if (!isHexString(expectedRootHash)) {
+      throw new Error("expectedRootHash must be a valid hex string");
+    }
+
+    // Deserialize the foreign tree
+    const leaves = (serializedTree as any).leaves.map((leaf: string) =>
+      Buffer.from(leaf, "hex")
+    );
+    const tree = new MerkleTree(leaves, SHA256, { sortPairs: true });
+
+    // Verify that the deserialized tree's root matches the expected root hash
+    const treeRootHash = tree.getRoot().toString("hex");
+    if (treeRootHash !== expectedRootHash) {
+      console.warn(
+        `Expected root hash ${expectedRootHash}, but got ${treeRootHash}`
+      );
+      return false;
+    }
+
+    // Rebuild the files map from the serialized tree
+    // @ts-ignore
+    tree.files = new Map(
+      Object.entries((serializedTree as any).files).map(
+        ([key, value]: [string, any]) => [
+          key,
+          { hash: value.hash, sha256: value.sha256 },
+        ]
+      )
+    );
+
+    // Check if the SHA-256 exists in the foreign tree's files
+    const combinedHash = crypto
+      .createHash("sha256")
+      .update(`${toHex(key)}/${sha256}`)
+      .digest("hex");
+
+    const leaf = Buffer.from(combinedHash, "hex");
+    const isInTree = tree.getLeafIndex(leaf) !== -1;
+
+    return isInTree;
   }
 }
 

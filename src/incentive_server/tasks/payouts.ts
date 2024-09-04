@@ -8,7 +8,7 @@ import { IncentiveProgram } from "../utils/IncentiveProgram";
 import { sampleCurrentEpochServerCoins } from "../../blockchain/server_coin";
 import { DataIntegrityTree, DataIntegrityTreeOptions } from "../../DataIntegrityTree";
 import { hexToUtf8 } from "../utils/hexUtils";
-import { DigPeer } from '../../utils/DigPeer';
+import { DigPeer } from '../../DigNetwork';
 import { validateStore } from '../../blockchain/datastore';
 
 const mutex = new Mutex();
@@ -76,7 +76,7 @@ const runIncentiveProgram = async (program: IncentiveProgram, currentEpoch: numb
     }
 
     // Send payout to winning peer.
-    console.log(`Sending ${rewardThisRound} XCH to ${winningPeer.ipAddress} for store ${program.storeId}...`);
+    console.log(`Sending ${rewardThisRound} XCH to ${winningPeer.IpAddress} for store ${program.storeId}...`);
 
     await winningPeer.sendPayment(rewardThisRound);
 

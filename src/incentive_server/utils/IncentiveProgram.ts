@@ -3,7 +3,7 @@ import { IncentiveProgramData } from "../../types";
 
 class IncentiveProgram {
   private data: IncentiveProgramData;
-  private static nconfManager = new NconfManager('payment_programs.json');
+  public static nconfManager = new NconfManager('payment_programs.json');
   private static blacklistManager = new NconfManager('blacklist.json');
 
   // Private constructor to prevent direct instantiation

@@ -24,9 +24,11 @@ COPY . .
 RUN npm install
 RUN npm i datalayer-driver-linux-x64-gnu
 RUN npm i chia-server-coin-linux-x64-gnu
+RUN npm run build
 
 # Rebuild any native modules for the current environment
 RUN npm rebuild
 
 # Run the application
-CMD ["npm", "run", "start-propagation-server"]
+CMD ["node", "dist/propagation_server/index.js"]
+

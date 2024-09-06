@@ -28,6 +28,7 @@ COPY . .
 RUN npm install
 RUN npm i datalayer-driver-linux-x64-gnu
 RUN npm i chia-server-coin-linux-x64-gnu
+RUN npm run build
 
 # Rebuild any native modules for the current environment
 RUN npm rebuild
@@ -36,4 +37,4 @@ RUN npm rebuild
 EXPOSE 80
 
 # Run npm start command when the container launches
-CMD ["npm", "run", "start-content-server"]
+CMD ["node", "dist/content_server/index.js"]

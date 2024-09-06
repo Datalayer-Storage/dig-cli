@@ -1,48 +1,94 @@
 import * as fs from "fs";
 import * as path from "path";
-import crypto from "crypto";
 import { MultiBar, Presets } from "cli-progress";
 import { DigPeer } from "./DigPeer";
 import { getDeltaFiles } from "../utils/deltaUtils";
 import { getFilePathFromSha256 } from "../utils/hashUtils";
-import { sampleCurrentEpochServerCoins } from "../blockchain/server_coin";
-import { getRootHistory } from "../blockchain/datastore";
-import { NconfManager } from "../utils/NconfManager";
-import { errorCorrectManifest } from "../utils/directoryUtils";
+import { DataStore, ServerCoin } from "../blockchain";
 import { DIG_FOLDER_PATH } from "../utils/config";
 
 export class DigNetwork {
-  private storeId: string;
+  private dataStore: DataStore;
+  private serverCoin: ServerCoin;
   private storeDir: string;
   private peerBlacklist: Map<string, Set<string>>; // Map of file keys to blacklists
 
   constructor(storeId: string) {
-    this.storeId = storeId;
+    this.dataStore = DataStore.from(storeId);
+    this.serverCoin = new ServerCoin(storeId);
     this.storeDir = path.resolve(DIG_FOLDER_PATH, "stores", storeId);
     this.peerBlacklist = new Map<string, Set<string>>(); // Initialize empty map for blacklists
   }
 
+  private async uploadPreflight(
+    digPeer: DigPeer
+  ): Promise<{ generationIndex: number; lastLocalRootHash: string }> {
+    // Preflight check is handled internally by PropagationServer if needed
+    const { lastUploadedHash, generationIndex } =
+      await digPeer.propagationServer.getUploadDetails();
+
+    const rootHistory = await this.dataStore.getLocalRootHistory();
+
+    if (!rootHistory || rootHistory.length === 0) {
+      throw new Error(
+        "No root hashes found. Please commit your changes first."
+      );
+    }
+
+    const lastLocalRootHash = rootHistory[rootHistory.length - 1].root_hash;
+    const localGenerationIndex = rootHistory.length - 1;
+
+    // Handle conditions based on the upload details
+    if (
+      lastUploadedHash !== lastLocalRootHash &&
+      generationIndex === localGenerationIndex
+    ) {
+      throw new Error(
+        "The repository seems to be corrupted. Please pull the latest changes before pushing."
+      );
+    }
+
+    if (
+      lastUploadedHash === lastLocalRootHash &&
+      generationIndex === localGenerationIndex
+    ) {
+      throw new Error("No changes detected. Skipping push.");
+    }
+
+    if (
+      lastUploadedHash !== lastLocalRootHash &&
+      generationIndex > localGenerationIndex
+    ) {
+      throw new Error(
+        "Remote repository is ahead of the local repository. Please pull the latest changes before pushing."
+      );
+    }
+    return { generationIndex, lastLocalRootHash };
+  }
+
   // Uploads the store to a specific peer
-  public async uploadStore(
-    digPeer: DigPeer,
-    generationIndex: number
-  ): Promise<void> {
+  public async uploadStore(digPeer: DigPeer): Promise<void> {
+    const { generationIndex } = await this.uploadPreflight(digPeer);
+
     const filesToUpload = await getDeltaFiles(
-      this.storeId,
+      this.dataStore.StoreId,
       generationIndex,
-      this.storeDir
+      path.resolve(DIG_FOLDER_PATH, "stores")
     );
+
+    console.log(filesToUpload);
 
     if (!filesToUpload.length) {
       console.log("No files to upload.");
       return;
     }
 
-    this.runProgressBar(
+    await this.runProgressBar(
       filesToUpload.length,
       "Store Data",
       async (progress) => {
         for (const filePath of filesToUpload) {
+          console.log(`Uploading ${filePath}...`);
           const relativePath = path
             .relative(this.storeDir, filePath)
             .replace(/\\/g, "/");
@@ -59,10 +105,7 @@ export class DigNetwork {
     renderProgressBar: boolean = true
   ): Promise<void> {
     try {
-      errorCorrectManifest(this.storeDir);
-      const rootHistory = await getRootHistory(
-        Buffer.from(this.storeId, "hex")
-      );
+      const rootHistory = await this.dataStore.getRootHistory();
       if (!rootHistory.length)
         throw new Error(
           "No roots found in rootHistory. Cannot proceed with file download."
@@ -133,7 +176,6 @@ export class DigNetwork {
 
       progressBar?.stop();
 
-      errorCorrectManifest(this.storeDir);
       console.log("Syncing store complete.");
     } catch (error: any) {
       console.trace(error);
@@ -145,13 +187,12 @@ export class DigNetwork {
   private async fetchAvailablePeers(): Promise<DigPeer[]> {
     //const publicIp: string | null | undefined =
     //   await nconfManager.getConfigValue("publicIp");
-    const peers = await sampleCurrentEpochServerCoins(
-      Buffer.from(this.storeId, "hex"),
+    const peers = await this.serverCoin.sampleCurrentEpoch(
       10,
       Array.from(this.peerBlacklist.keys())
     );
 
-    return peers.map((ip) => new DigPeer(ip, this.storeId));
+    return peers.map((ip: string) => new DigPeer(ip, this.dataStore.StoreId));
   }
 
   private async downloadHeightFile(forceDownload: boolean): Promise<void> {
@@ -234,11 +275,11 @@ export class DigNetwork {
     }
   }
 
-  private runProgressBar(
+  private async runProgressBar(
     total: number,
     name: string,
     task: (progress: any) => Promise<void>
-  ): void {
+  ): Promise<void> {
     // Using 'any' to work around TypeScript issues
     const multiBar = new MultiBar(
       {
@@ -250,6 +291,6 @@ export class DigNetwork {
       Presets.shades_classic
     );
     const progress = multiBar.create(total, 0, { name });
-    task(progress).finally(() => multiBar.stop());
+    await task(progress).finally(() => multiBar.stop());
   }
 }

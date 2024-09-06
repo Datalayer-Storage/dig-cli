@@ -16,17 +16,18 @@ import {
 import { mimeTypes } from "../utils/mimeTypes";
 import { hexToUtf8 } from "../utils/hexUtils";
 import { getStorageLocation } from "../utils/storage";
-import { getLatestStoreInfo, isStoreSynced } from "../../blockchain/datastore";
+import { DataStore } from "../../blockchain";
 
 const digFolderPath = getStorageLocation();
 
 export const headStore = async (req: Request, res: Response) => {
   // @ts-ignore
   let { storeId } = req;
-  const state = await getCoinState(storeId);
-  res.setHeader("X-Generation-Hash", state.metadata.rootHash);
+  const dataStore = DataStore.from(storeId);
+  const { latestStore: state} = await dataStore.fetchCoinInfo();
+  res.setHeader("X-Generation-Hash", state.metadata.rootHash.toString("hex"));
   res.setHeader("X-Store-Id", storeId);
-  res.setHeader("X-Synced", await isStoreSynced(storeId) ? "true" : "false");
+  res.setHeader("X-Synced", await dataStore.isSynced() ? "true" : "false");
   res.status(200).end();
 }
 
@@ -47,11 +48,12 @@ export const getStoresIndex = async (req: Request, res: Response) => {
 // Controller for handling the /:storeId route
 export const getKeysIndex = async (req: Request, res: Response) => {
   // @ts-ignore
-  let { storeId, rootHash } = req;
+  let { chainName, storeId, rootHash } = req;
 
   try {
     if (!rootHash) {
-      const storeInfo = await getLatestStoreInfo(Buffer.from(storeId, "hex"));
+      const dataStore = DataStore.from(storeId);
+      const storeInfo = await dataStore.fetchCoinInfo();
       rootHash = storeInfo.latestStore.metadata.rootHash.toString("hex");
     }
 
@@ -108,7 +110,7 @@ export const getKeysIndex = async (req: Request, res: Response) => {
     const keys = datalayer.listKeys(rootHash);
     const links = keys.map((key) => {
       const utf8Key = hexToUtf8(key);
-      const link = `/${storeId}/${encodeURIComponent(utf8Key)}`;
+      const link = `/${chainName}.${storeId}.${rootHash}/${utf8Key}`;
       return { utf8Key, link };
     });
 
@@ -133,11 +135,14 @@ export const getKey = async (req: Request, res: Response) => {
     const catchall = req.params[0];
 
     if (!rootHash) {
-      const storeInfo = await getLatestStoreInfo(Buffer.from(storeId, 'hex'));
+      const dataStore = DataStore.from(storeId);
+      const storeInfo = await dataStore.fetchCoinInfo();
       rootHash = storeInfo.latestStore.metadata.rootHash.toString('hex');
     }
 
-    const key = Buffer.from(catchall, "utf-8").toString("hex");
+    const key = Buffer.from(decodeURIComponent(catchall), "utf-8").toString("hex");
+
+    console.log("Fetching key:", key);
 
     const options: DataIntegrityTreeOptions = {
       storageMode: "local",
@@ -194,7 +199,8 @@ export const headKey = async (req: Request, res: Response) => {
     const catchall = req.params[0];
 
     if (!rootHash) {
-      const storeInfo = await getLatestStoreInfo(Buffer.from(storeId, 'hex'));
+      const dataStore = DataStore.from(storeId);
+      const storeInfo = await dataStore.fetchCoinInfo();
       rootHash = storeInfo.latestStore.metadata.rootHash.toString('hex');
     }
 

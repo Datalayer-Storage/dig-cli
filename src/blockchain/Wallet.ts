@@ -1,7 +1,7 @@
 import * as bip39 from "bip39";
 import { PrivateKey } from "chia-bls";
 import { mnemonicToSeedSync } from "bip39";
-import { NconfManager } from '../utils/NconfManager';
+import { NconfManager } from "../utils/NconfManager";
 import { askForMnemonicAction, askForMnemonicInput } from "../prompts";
 import WalletRpc from "chia-wallet";
 // @ts-ignore
@@ -15,6 +15,8 @@ import {
   masterSecretKeyToWalletSyntheticSecretKey,
   masterPublicKeyToFirstPuzzleHash,
   puzzleHashToAddress,
+  signMessage,
+  verifySignedMessage,
 } from "datalayer-driver";
 
 const KEYRING_FILE = "keyring.json";
@@ -28,10 +30,17 @@ export class Wallet {
   }
 
   // Static async method to load a wallet instance
-  public static async load(walletName: string = "main"): Promise<Wallet> {
+  public static async load(
+    walletName: string = "default",
+    createOnUndefined: boolean = true
+  ): Promise<Wallet> {
     const mnemonic = await Wallet.getWalletFromKeyring(walletName);
 
-    if (!mnemonic) {
+    if (mnemonic) {
+      return new Wallet(mnemonic);
+    }
+
+    if (createOnUndefined) {
       const { action } = await askForMnemonicAction();
 
       let newMnemonic: string;
@@ -50,7 +59,7 @@ export class Wallet {
       return new Wallet(newMnemonic);
     }
 
-    return new Wallet(mnemonic);
+    throw new Error("Wallet Not Found");
   }
 
   // Get the mnemonic
@@ -70,7 +79,10 @@ export class Wallet {
   }
 
   // Import a wallet with a given mnemonic
-  public static async importWallet(walletName: string, seed?: string): Promise<string> {
+  public static async importWallet(
+    walletName: string,
+    seed?: string
+  ): Promise<string> {
     let mnemonic: string;
 
     if (seed) {
@@ -90,7 +102,9 @@ export class Wallet {
   }
 
   // Import mnemonic from Chia Client and save it to the keyring
-  public static async importWalletFromChia(walletName: string): Promise<string> {
+  public static async importWalletFromChia(
+    walletName: string
+  ): Promise<string> {
     const chiaRoot = getChiaRoot();
     const certificateFolderPath = `${chiaRoot}/config/ssl`;
     const config = getChiaConfig();
@@ -180,10 +194,13 @@ export class Wallet {
   }
 
   // Internal static method to retrieve the wallet (mnemonic) from the keyring
-  private static async getWalletFromKeyring(walletName: string): Promise<string | null> {
+  private static async getWalletFromKeyring(
+    walletName: string
+  ): Promise<string | null> {
     const nconfManager = new NconfManager(KEYRING_FILE);
     if (await nconfManager.configExists()) {
-      const encryptedData: EncryptedData | null = await nconfManager.getConfigValue(walletName);
+      const encryptedData: EncryptedData | null =
+        await nconfManager.getConfigValue(walletName);
       if (encryptedData) {
         return decryptData(encryptedData);
       }
@@ -192,10 +209,36 @@ export class Wallet {
   }
 
   // Internal static method to save the wallet (mnemonic) to the keyring
-  private static async saveWalletToKeyring(walletName: string, mnemonic: string): Promise<void> {
+  private static async saveWalletToKeyring(
+    walletName: string,
+    mnemonic: string
+  ): Promise<void> {
     const nconfManager = new NconfManager(KEYRING_FILE);
     const encryptedData = encryptData(mnemonic);
     await nconfManager.setConfigValue(walletName, encryptedData);
     console.log("Mnemonic seed phrase securely stored in keyring.");
+  }
+
+  public async createKeyOwnershipSignature(nonce: string): Promise<string> {
+    const message = `Signing this message to prove ownership of key.\n\nNonce: ${nonce}`;
+    const privateSyntheticKey = await this.getPrivateSyntheticKey();
+    const signature = signMessage(
+      Buffer.from(message, "utf-8"),
+      privateSyntheticKey
+    );
+    return signature.toString("hex");
+  }
+
+  public async verifyKeyOwnershipSignature(
+    nonce: string,
+    signature: string,
+    publicKey: string
+  ): Promise<boolean> {
+    const message = `Signing this message to prove ownership of key.\n\nNonce: ${nonce}`;
+    return verifySignedMessage(
+      Buffer.from(signature, "hex"),
+      Buffer.from(publicKey, "hex"),
+      Buffer.from(message, "utf-8")
+    );
   }
 }

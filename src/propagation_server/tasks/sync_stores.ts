@@ -5,15 +5,11 @@ import {
   STORE_PATH,
   getManifestFilePath,
 } from "../../utils/config";
-import {
-  getRootHistory,
-  getLatestStoreInfo,
-  validateStore,
-} from "../../blockchain/datastore";
+import { Wallet, DataStore } from "../../blockchain";
 import { Mutex } from "async-mutex";
 import { DigNetwork } from "../../DigNetwork";
 import { NconfManager } from "../../utils/NconfManager";
-import { ensureServerCoinExists, meltOutdatedEpochs } from "../../blockchain/server_coin";
+import { ServerCoin } from "../../blockchain";
 
 const mutex = new Mutex();
 
@@ -42,8 +38,9 @@ const syncStore = async (storeId: string): Promise<void> => {
 
 const isStoreUpToDate = async (storeId: string): Promise<boolean> => {
   console.log(`Checking if store ${storeId} is up to date...`);
+  const dataStore = await DataStore.from(storeId);
 
-  const rootHistory = await getRootHistory(Buffer.from(storeId, "hex"));
+  const rootHistory = await dataStore.getRootHistory();
 
   const manifestFilePath = getManifestFilePath(storeId);
   if (!fs.existsSync(manifestFilePath)) {
@@ -61,7 +58,7 @@ const syncStoreFromNetwork = async (storeId: string): Promise<void> => {
   try {
     console.log(`Attempting to sync store ${storeId} from the network...`);
     const digNetwork = new DigNetwork(storeId);
-    await digNetwork.downloadFiles(false, true);
+    await digNetwork.downloadFiles(false, false);
   } catch (error: any) {
     console.warn(
       `Initial sync attempt failed for ${storeId}: ${error.message}`
@@ -72,14 +69,15 @@ const syncStoreFromNetwork = async (storeId: string): Promise<void> => {
     }
     console.log(`Retrying sync for store ${storeId} with forced download...`);
     const digNetwork = new DigNetwork(storeId);
-    await digNetwork.downloadFiles(true, true);
+    await digNetwork.downloadFiles(true, false);
   }
 };
 
 const finalizeStoreSync = async (storeId: string): Promise<void> => {
   try {
     console.log(`Finalizing sync for store ${storeId}...`);
-    await getLatestStoreInfo(Buffer.from(storeId, "hex"));
+    const dataStore = await DataStore.from(storeId);
+    await dataStore.fetchCoinInfo();
     console.log(`Finalization complete for store ${storeId}.`);
   } catch (error: any) {
     console.error(`Error in finalizing store ${storeId}: ${error.message}`);
@@ -89,6 +87,16 @@ const finalizeStoreSync = async (storeId: string): Promise<void> => {
 const task = new Task("sync-stores", async () => {
   if (!mutex.isLocked()) {
     const releaseMutex = await mutex.acquire();
+    let mnemonic: string | undefined;
+
+    try {
+      const wallet = await Wallet.load("default", false);
+      mnemonic = await wallet.getMnemonic();
+    } catch (error: any) {
+      console.error(`Error in sync-stores task: ${error.message}`);
+      releaseMutex();
+      return;
+    }
 
     try {
       console.log("Starting sync-stores task...");
@@ -116,8 +124,9 @@ const task = new Task("sync-stores", async () => {
         try {
           await syncStore(storeId);
           if (publicIp) {
-            await ensureServerCoinExists(storeId, publicIp);
-            await meltOutdatedEpochs(storeId, publicIp);
+            const serverCoin = new ServerCoin(storeId);
+            await serverCoin.ensureServerCoinExists(publicIp);
+            await serverCoin.meltOutdatedEpochs(publicIp);
           } else {
             console.warn(
               `Skipping server coin check for store ${storeId} due to missing public IP.`
@@ -128,7 +137,11 @@ const task = new Task("sync-stores", async () => {
         }
       }
 
+      await ServerCoin.meltUntrackedStoreCoins();
+
       console.log("Sync-stores task completed.");
+    } catch (error: any) {
+      console.error(`Error in sync-stores task: ${error.message}`);
     } finally {
       releaseMutex();
     }

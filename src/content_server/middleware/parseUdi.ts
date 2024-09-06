@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { renderUnknownChainView } from "../views";
-import { getLatestStoreInfo } from "../../blockchain/datastore";
+import { DataStore } from "../../blockchain";
 
 const validChainNames = ["chia"]; // List of valid chain names
 
@@ -21,6 +21,10 @@ export const parseUdi = async (
     let chainName: string | null = null;
     let storeId: string = "";
     let rootHash: string | null = null;
+
+    // Parse the rest of the pathname after the storeId
+    const originalPath = req.originalUrl.split("/").slice(2).join("/"); // Removes the first segment, which is the storeId part
+    const appendPath = originalPath ? `/${originalPath}` : "";
 
     // Split the pathSegment by periods to extract potential components
     const parts = pathSegment.split(".");
@@ -49,16 +53,20 @@ export const parseUdi = async (
       return res.status(400).send("Invalid or missing storeId.");
     }
 
+    const dataStore = DataStore.from(storeId);
+
     // Early exit: If both chainName and rootHash are missing, redirect with both added
     if (!chainName && !rootHash) {
-      const storeInfo = await getLatestStoreInfo(Buffer.from(storeId, "hex"));
+      const storeInfo = await dataStore.fetchCoinInfo();
       rootHash = storeInfo.latestStore.metadata.rootHash.toString("hex");
-      return res.redirect(302, `/chia.${storeId}.${rootHash}`);
+
+      let redirect = `/chia.${storeId}.${rootHash}${appendPath}`;
+      return res.redirect(302, redirect);
     }
 
     // If chainName is missing, redirect with "chia" added
     if (!chainName) {
-      return res.redirect(302, `/chia.${pathSegment}`);
+      return res.redirect(302, `/chia.${pathSegment}${appendPath}`);
     }
 
     // Validate the chainName
@@ -68,9 +76,9 @@ export const parseUdi = async (
 
     // If rootHash is missing, fetch it and redirect with the rootHash added
     if (!rootHash) {
-      const storeInfo = await getLatestStoreInfo(Buffer.from(storeId, "hex"));
+      const storeInfo = await dataStore.fetchCoinInfo();
       rootHash = storeInfo.latestStore.metadata.rootHash.toString("hex");
-      return res.redirect(302, `/${chainName}.${storeId}.${rootHash}`);
+      return res.redirect(302, `/${chainName}.${storeId}.${rootHash}${appendPath}`);
     }
 
     // Attach extracted components to the request object

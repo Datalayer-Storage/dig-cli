@@ -112,6 +112,10 @@ class DataIntegrityTree {
     }
   }
 
+  public static from(storeId: string, options: DataIntegrityTreeOptions): DataIntegrityTree {
+    return new DataIntegrityTree(storeId, { ...options, disableInitialize: true });
+  }
+
   /**
    * Load the manifest file.
    * @private
@@ -367,6 +371,24 @@ class DataIntegrityTree {
     return tree;
   }
 
+  private appendRootHashToManifest(rootHash: string): void {
+    const manifestPath = path.join(this.storeDir, "manifest.dat");
+    // Read the current manifest file
+    const manifestContent = fs.existsSync(manifestPath)
+      ? fs.readFileSync(manifestPath, "utf-8").trim().split("\n")
+      : [];
+  
+    // Check if the last entry is the same as the rootHash to avoid duplicates
+    const latestRootHash = manifestContent.length > 0 ? manifestContent[manifestContent.length - 1] : null;
+  
+    if (latestRootHash !== rootHash) {
+      // Append the new rootHash if it is not the same as the last one
+      fs.appendFileSync(manifestPath, `${rootHash}\n`);
+    } else {
+      console.log(`Root hash ${rootHash} is already at the end of the file. Skipping append.`);
+    }
+  }
+
   /**
    * Commit the current state of the Merkle tree.
    */
@@ -385,8 +407,7 @@ class DataIntegrityTree {
       return undefined;
     }
 
-    const manifestPath = path.join(this.storeDir, "manifest.dat");
-    fs.appendFileSync(manifestPath, `${rootHash}\n`);
+    this.appendRootHashToManifest(rootHash);
 
     const treeFilePath = path.join(this.storeDir, `${rootHash}.dat`);
     if (!fs.existsSync(path.dirname(treeFilePath))) {

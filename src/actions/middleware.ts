@@ -1,28 +1,28 @@
 import path from "path";
 import fs from "fs";
-import { hasMetadataWritePermissions } from "../blockchain/datastore";
 import { Config } from "../types";
-import { CONFIG_FILE_PATH, DIG_FOLDER_PATH, getActiveStoreId } from "../utils/config";
+import { CONFIG_FILE_PATH, DIG_FOLDER_PATH } from "../utils/config";
 import { isCoinSpendable } from "../blockchain/coins";
-import { getPeer } from "../blockchain/peer";
-import { getLatestStoreInfo } from "../blockchain/datastore";
+import { FullNodePeer } from "../blockchain";
+import { DataStore, Wallet } from "../blockchain";
 import { getCoinId } from "datalayer-driver";
 import { waitForPromise } from "../utils";
 
+
 export const checkStoreWritePermissions = async (): Promise<void> => {
   if (fs.existsSync(DIG_FOLDER_PATH)) {
-    const storeId = await getActiveStoreId();
+    const dataStore = await DataStore.getActiveStore();
 
-    if (storeId) {
+    if (dataStore) {
       try {
         await waitForPromise(
           async () => {
-            const { latestStore } = await getLatestStoreInfo(storeId);
+            const { latestStore } = await dataStore.fetchCoinInfo();
 
             if (latestStore) {
-              const storeIsWritable = await hasMetadataWritePermissions(
-                latestStore.launcherId
-              );
+              const wallet = await Wallet.load('default');
+              const publicSyntheticKey = await wallet.getPublicSyntheticKey();
+              const storeIsWritable = await dataStore.hasMetaWritePermissions(publicSyntheticKey);
 
               if (!storeIsWritable) {
                 throw new Error(
@@ -46,14 +46,14 @@ export const checkStoreWritePermissions = async (): Promise<void> => {
 };
 
 export const ensureStoreIsSpendable = async (): Promise<void> => {
-  const peer = await getPeer();
-  const storeId = await getActiveStoreId();
+  const peer = await FullNodePeer.connect();
+  const dataStore = await DataStore.getActiveStore();
 
-  if (!storeId) {
+  if (!dataStore) {
     throw new Error("Store ID not found. Please run init first.");
   }
 
-  const { latestStore } = await getLatestStoreInfo(storeId);
+  const { latestStore } = await dataStore.fetchCoinInfo();
   if (latestStore) {
     console.log(
       "Checking if Store is spendable:",

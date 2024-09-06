@@ -3,7 +3,7 @@ import path from "path";
 import { DigNetwork } from "../DigNetwork"; // Use the DigNetwork class
 import { STORE_PATH, DIG_FOLDER_PATH } from "../utils/config";
 import { waitForPromise } from "../utils";
-import { validateStore } from "../blockchain/datastore";
+import { DataStore } from "../blockchain";
 
 export const clone = async (storeId: string): Promise<void> => {
   console.log(`Cloning store: ${storeId}`);
@@ -28,10 +28,12 @@ export const clone = async (storeId: string): Promise<void> => {
     process.exit(1); // Exit the process with an error code
   }
 
+  const dataStore = DataStore.from(storeId);
+
   try {
     // Perform the store integrity check after pulling files
     const storeIntegrityCheck = await waitForPromise(
-      () => validateStore(),
+      () => dataStore.validate(),
       "Checking store integrity...",
       "Store integrity check passed.",
       "Store integrity check failed."

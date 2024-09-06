@@ -19,6 +19,7 @@ import { logout } from "../actions/logout";
 import { startContentServer } from "../content_server/server";
 import { checkStoreWritePermissions } from "../actions";
 import { getActiveStoreId } from "../utils/config";
+import * as readline from "readline";
 
 // Command handlers
 export const handlers = {
@@ -57,7 +58,7 @@ export const handlers = {
   setRemote: async (peer: string) => {
     await setRemote(peer);
   },
-  syncRemoteSeed: async (walletName: string = 'main') => {
+  syncRemoteSeed: async (walletName: string = 'default') => {
     console.log("Syncing remote seed");
     await syncRemoteSeed(walletName);
   },
@@ -91,13 +92,13 @@ export const handlers = {
         console.error("Unknown store action");
     }
   },
-  manageKeys: async (action: string, providedMnemonic?: string, walletName: string = 'main') => {
+  manageKeys: async (action: string, providedMnemonic?: string, walletName: string = 'default') => {
     switch (action) {
       case "import":
         await Wallet.importWallet(walletName, providedMnemonic);
         break;
-      case "generate":
-        await Wallet.createNewWallet(walletName);
+      case "new":
+        await Wallet.load(walletName);
         break;
       case "delete":
         await Wallet.deleteWallet(walletName);

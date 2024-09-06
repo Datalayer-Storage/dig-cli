@@ -1,4 +1,4 @@
-import { getMnemonic } from "../../blockchain/mnemonic";
+import { Wallet } from "../../blockchain";
 import { getCredentials } from "../utils/authUtils";
 import { Request, Response, NextFunction } from "express";
 
@@ -8,7 +8,8 @@ export const verifyMnemonic = async (
   next: NextFunction
 ) => {
   try {
-    const mnemonic = await getMnemonic();
+    const wallet = await Wallet.load("default");
+    const mnemonic = await wallet.getMnemonic();
 
     if (!mnemonic) {
       return res

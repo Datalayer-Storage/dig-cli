@@ -9,7 +9,7 @@ import { ensureDigConfig, DIG_FOLDER_PATH } from "../utils/config";
 import { getOrCreateSSLCerts } from "../utils/ssl";
 import { promptCredentials } from "../utils";
 import { Wallet } from "../blockchain";
-import { sampleCurrentEpochServerCoins } from "../blockchain/server_coin";
+import { ServerCoin } from "../blockchain";
 
 export const setRemote = (remote: string): void => {
   _setRemote(remote);
@@ -56,7 +56,7 @@ const syncOrSetRemoteSeed = async (walletName: string, mnemonic: string): Promis
   }
 };
 
-export const syncRemoteSeed = async (walletName: string = 'main'): Promise<void> => {
+export const syncRemoteSeed = async (walletName: string = 'default'): Promise<void> => {
   const wallet = await Wallet.load(walletName);
   const mnemonic = wallet.getMnemonic();
 
@@ -67,7 +67,7 @@ export const syncRemoteSeed = async (walletName: string = 'main'): Promise<void>
   await syncOrSetRemoteSeed(walletName, mnemonic);
 };
 
-export const setRemoteSeed = async (walletName: string = 'main', mnemonic: string): Promise<void> => {
+export const setRemoteSeed = async (walletName: string = 'default', mnemonic: string): Promise<void> => {
   await syncOrSetRemoteSeed(walletName, mnemonic);
 };
 
@@ -83,7 +83,9 @@ export const subscribeToStore = async (storeId: string): Promise<void> => {
     throw new Error("Invalid storeId. Must be a 64-character hexadecimal string." );
   }
 
-  const storeMirrors = await sampleCurrentEpochServerCoins(Buffer.from(storeId, 'hex'));
+  const serverCoin = new ServerCoin(storeId);
+
+  const storeMirrors = await serverCoin.sampleCurrentEpoch(1);
 
   if (storeMirrors.length === 0) {
     throw new Error("Cannot find any mirrors for the store, unable to subscribe.");

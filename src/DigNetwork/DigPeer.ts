@@ -3,7 +3,7 @@ import crypto from "crypto";
 import { ContentServer } from "./ContentServer";
 import { PropagationServer } from "./PropagationServer";
 import { IncentiveServer } from "./IncentiveServer";
-import { getRootHistory } from "../blockchain/datastore";
+import { DataStore } from "../blockchain";
 import { DataIntegrityTree } from "../DataIntegrityTree";
 import { getFilePathFromSha256 } from "../utils/hashUtils";
 import {
@@ -12,11 +12,9 @@ import {
   signCoinSpends,
   getCoinId,
 } from "datalayer-driver";
-import { getPeer } from "../blockchain/peer";
+import { FullNodePeer } from "../blockchain";
 import { Wallet } from "../blockchain";
 import { selectUnspentCoins } from "../blockchain/coins";
-import { MIN_HEIGHT, MIN_HEIGHT_HEADER_HASH } from "../utils/config";
-import { waitForConfirmation } from "../blockchain/coins";
 
 export class DigPeer {
   private ipAddress: string;
@@ -61,10 +59,9 @@ export class DigPeer {
     );
 
     try {
+      const dataStore = DataStore.from(this.storeId);
       // Fetch the root history from the propagation server
-      const rootHistory = await getRootHistory(
-        Buffer.from(this.storeId, "hex")
-      );
+      const rootHistory = await dataStore.getRootHistory();
 
       if (rootHistory.length === 0) {
         console.error("No root history found for the store.");
@@ -169,9 +166,9 @@ export class DigPeer {
   public async isSynced(): Promise<boolean> {
     try {
       // Fetch the root history from the propagation server
-      const rootHistory = await getRootHistory(
-        Buffer.from(this.storeId, "hex")
-      );
+      const dataStore = DataStore.from(this.storeId);
+      const rootHistory = await dataStore.getRootHistory();
+
       if (rootHistory.length === 0) {
         console.error("No root history found for the store.");
         return false;
@@ -196,7 +193,7 @@ export class DigPeer {
     console.log(`Sending ${amount} XCH to ${paymentAddress}...`);
     const wallet = await Wallet.load(walletName);
     const publicSyntheticKey = await wallet.getPublicSyntheticKey();
-    const peer = await getPeer();
+    const peer = await FullNodePeer.connect();
     const coins = await selectUnspentCoins(peer, BigInt(amount), BigInt(1000));
     const paymentAddressPuzzleHash = addressToPuzzleHash(paymentAddress);
     const coinSpends = await sendXch(
@@ -219,6 +216,6 @@ export class DigPeer {
       throw new Error(err);
     }
 
-    await waitForConfirmation(getCoinId(coins[0]));
+    await FullNodePeer.waitForConfirmation(getCoinId(coins[0]));
   }
 }

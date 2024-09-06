@@ -6,10 +6,9 @@ import {
   CoinSpend,
   getCoinId,
 } from "datalayer-driver";
-import { getOwnerPuzzleHash } from "./Wallet";
+import { Wallet } from "./Wallet";
 import { MIN_HEIGHT, MIN_HEIGHT_HEADER_HASH } from "../utils/config";
-import { createSpinner } from "nanospinner";
-import { getPeer } from "./peer";
+import { FullNodePeer } from "./FullNodePeer";
 
 export const DEFAULT_FEE_COIN_COST = 64_000_000;
 
@@ -52,7 +51,8 @@ export const selectUnspentCoins = async (
   feeBigInt: bigint,
   omitCoins: Coin[] = []
 ): Promise<Coin[]> => {
-  const ownerPuzzleHash = await getOwnerPuzzleHash();
+  const wallet = await Wallet.load("default");
+  const ownerPuzzleHash = await wallet.getOwnerPuzzleHash();
 
   const coinsResp = await peer.getAllUnspentCoins(
     ownerPuzzleHash,
@@ -66,9 +66,9 @@ export const selectUnspentCoins = async (
 
   const omitCoinIds = omitCoins.map((coin) => getCoinId(coin).toString("hex"));
 
- // if (process.env.DIG_DEBUG == "1") {
+  if (process.env.DIG_DEBUG == "1") {
     console.log("Omit Coin IDs:", omitCoinIds); // Debugging
- // }
+  }
 
   const unspentCoins = coinsResp.coins;
 
@@ -80,7 +80,10 @@ export const selectUnspentCoins = async (
     console.log("Unspent Coins after filtering:", filteredUnspentCoins); // Debugging
   }
 
-  const selectedCoins = selectCoins(filteredUnspentCoins, feeBigInt + coinAmount);
+  const selectedCoins = selectCoins(
+    filteredUnspentCoins,
+    feeBigInt + coinAmount
+  );
   if (process.env.DIG_DEBUG == "1") {
     console.log("Selected Coins:", selectedCoins); // Debugging
   }
@@ -89,33 +92,6 @@ export const selectUnspentCoins = async (
     throw new Error("No unspent coins available.");
   }
   return selectedCoins;
-};
-
-export const waitForConfirmation = async (
-  parentCoinInfo: Buffer
-): Promise<boolean> => {
-  const spinner = createSpinner("Waiting for confirmation...").start();
-  const peer = await getPeer();
-
-  try {
-    while (true) {
-      const confirmed = await peer.isCoinSpent(
-        parentCoinInfo,
-        MIN_HEIGHT,
-        Buffer.from(MIN_HEIGHT_HEADER_HASH, "hex")
-      );
-
-      if (confirmed) {
-        spinner.success({ text: "Coin confirmed!" });
-        return true;
-      }
-
-      await new Promise((resolve) => setTimeout(resolve, 5000));
-    }
-  } catch (error: any) {
-    spinner.error({ text: "Error while waiting for confirmation." });
-    throw error;
-  }
 };
 
 export const isCoinSpendable = async (

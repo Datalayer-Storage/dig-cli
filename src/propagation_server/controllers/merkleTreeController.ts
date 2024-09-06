@@ -4,8 +4,8 @@ import { Request, Response } from "express";
 import { getCredentials } from "../utils/authUtils";
 import { HttpError } from "../utils/HttpError";
 import { generateNonce } from "../utils/nonce";
-import { hasMetadataWritePermissions, isStoreSynced } from "../../blockchain/datastore";
-import { verifyKeyOwnershipSignature } from "../../blockchain/signature";
+import { DataStore } from "../../blockchain";
+import { Wallet } from "../../blockchain";
 import { pipeline } from "stream";
 import { promisify } from "util";
 import { getStorageLocation } from "../utils/storage";
@@ -22,7 +22,8 @@ export const storeStatus = async (req: Request, res: Response): Promise<void> =>
       throw new HttpError(400, "Missing storeId in path parameters.");
     }
 
-    const synced = await isStoreSynced(Buffer.from(storeId, 'hex'));
+    const dataStore = DataStore.from(storeId);
+    const synced = await dataStore.isSynced();
 
     res.status(200).json({ synced });
   } catch (error: any) {
@@ -202,7 +203,8 @@ export const putStore = async (req: Request, res: Response): Promise<void> => {
 
     // Verify key ownership signature
     console.log("Verifying key ownership signature...");
-    const isSignatureValid = await verifyKeyOwnershipSignature(
+    const wallet = await Wallet.load("default");
+    const isSignatureValid = await wallet.verifyKeyOwnershipSignature(
       nonce,
       keyOwnershipSig,
       publicKey

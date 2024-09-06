@@ -62,6 +62,7 @@ export interface ServerCoinData {
 export interface IncentiveProgramData {
   storeId: string;
   xchRewardPerEpoch: number;
+  totalRoundsPerEpoch: number;
   totalRoundsCompleted?: number;
   paymentTotalToDate?: number;
   active: boolean;

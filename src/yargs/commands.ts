@@ -215,7 +215,7 @@ export function keysCommand(yargs: Argv<{}>) {
     mnemonic?: string;
     walletName?: string;
   }>(
-    "keys <action> [walletName]",
+    "wallet <action> [walletName]",
     "Manage cryptographic keys",
     (
       yargs: Argv<{ action: string; mnemonic?: string; walletName?: string }>
@@ -224,7 +224,7 @@ export function keysCommand(yargs: Argv<{}>) {
         .positional("action", {
           describe: "Action to perform on keys",
           type: "string",
-          choices: ["import", "generate", "delete", "show"],
+          choices: ["import", "new", "delete", "show"],
         })
         .positional("walletName", {
           describe: "Optional wallet name to perform the action on",

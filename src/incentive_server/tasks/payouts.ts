@@ -1,19 +1,18 @@
 import path from 'path';
 import { sampleSize } from 'lodash';
 import { SimpleIntervalJob, Task } from "toad-scheduler";
-import { getCurrentEpoch } from "../../blockchain/server_coin";
+import { ServerCoin } from "../../blockchain/ServerCoin";
 import { getStoresList } from "../../utils/config";
 import { Mutex } from "async-mutex";
 import { IncentiveProgram } from "../utils/IncentiveProgram";
-import { sampleCurrentEpochServerCoins } from "../../blockchain/server_coin";
 import { DataIntegrityTree, DataIntegrityTreeOptions } from "../../DataIntegrityTree";
 import { hexToUtf8 } from "../utils/hexUtils";
 import { DigPeer } from '../../DigNetwork';
-import { validateStore } from '../../blockchain/datastore';
+import { DataStore } from '../../blockchain';
 
 const mutex = new Mutex();
 
-const roundsPerEpoch = 167; // 1 round every hour starting on the first hour of the epoch
+const roundsPerEpoch = 1008; // 1 round every 10 mins starting on the first hour of the epoch
 
 const runIncentiveProgram = async (program: IncentiveProgram, currentEpoch: number): Promise<void> => {
   if (!process.env.DIG_FOLDER_PATH) {
@@ -30,17 +29,22 @@ const runIncentiveProgram = async (program: IncentiveProgram, currentEpoch: numb
   // If your running an incentive program you must have your own copy of the store you want to incentivize
   // to ensure there is at least one peer everyone can download the latest store from. Dont penalize anyone if
   // you cant even keep your house in order.
-
-  await validateStore(Buffer.from(program.storeId));
+  const dataStore = DataStore.from(program.storeId);
+  const storeIntegrityCheck = await dataStore.validate();
+  
+  if (!storeIntegrityCheck) {
+    throw new Error(`Store ${program.storeId} failed integrity check.`);
+  } 
 
   if (program.active) {
     const rewardThisRound = program.xchRewardPerEpoch / roundsPerEpoch;
     const peerBlackList = await program.getBlacklist();
+    const serverCoin = new ServerCoin(program.storeId);
 
     let winningPeer: DigPeer | null = null;
 
     while (!winningPeer) {
-      let serverCoins = await sampleCurrentEpochServerCoins(Buffer.from(program.storeId, 'hex'), 5, peerBlackList);
+      let serverCoins = await serverCoin.sampleCurrentEpoch(5, peerBlackList);
 
       if (serverCoins.length === 0) {
         throw new Error(`No peers available for storeId ${program.storeId}`);
@@ -88,7 +92,7 @@ const runIncentiveProgram = async (program: IncentiveProgram, currentEpoch: numb
 
 // Function to run payouts for all stores
 const runPayouts = async (): Promise<void> => {
-  const currentEpoch = await getCurrentEpoch();
+  const currentEpoch = ServerCoin.getCurrentEpoch();
   const storeList = getStoresList();
 
   for (const storeId of storeList) {
@@ -117,7 +121,7 @@ const task = new Task("payouts", async () => {
 
 const job = new SimpleIntervalJob(
   {
-    hours: 1,
+    minutes: 10,
     runImmediately: true,
   },
   task,

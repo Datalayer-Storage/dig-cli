@@ -15,7 +15,7 @@ export const setMnemonic = async (
     }
 
     // handles validation logic in the function
-    await Wallet.importWallet(walletName || "main", mnemonic);
+    await Wallet.importWallet(walletName || "default", mnemonic);
 
     res.status(200).json({ message: "Mnemonic has been set successfully." });
   } catch (error) {

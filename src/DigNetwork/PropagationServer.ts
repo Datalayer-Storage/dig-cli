@@ -4,8 +4,7 @@ import { URL } from "url";
 import { getOrCreateSSLCerts } from "../utils/ssl";
 import { promptCredentials } from "../utils/credentialsUtils";
 import { waitForPromise } from "../utils/spinnerUtils";
-import { createKeyOwnershipSignature } from "../blockchain/signature";
-import { getPublicSyntheticKey } from "../blockchain/Wallet";
+import { Wallet } from "../blockchain";
 import { Readable } from "stream";
 import { getFilePathFromSha256 } from "../utils/hashUtils";
 
@@ -34,8 +33,9 @@ export class PropagationServer {
   // Method to upload a file to the propagation server
   public async pushFile(filePath: string, relativePath: string): Promise<void> {
     const { nonce, username, password } = await this.getUploadDetails();
-    const keyOwnershipSig = await createKeyOwnershipSignature(nonce);
-    const publicKey = await getPublicSyntheticKey();
+    const wallet = await Wallet.load("default");
+    const keyOwnershipSig = await wallet.createKeyOwnershipSignature(nonce);
+    const publicKey = await wallet.getPublicSyntheticKey();
 
     const uploadUrl = `https://${this.ipAddress}:${PropagationServer.port}/${this.storeId}/${relativePath}`;
     await this.retryOperation(
@@ -205,10 +205,14 @@ export class PropagationServer {
             if (res.statusCode === 200) {
               // Check if the headers are present and valid
               const nonce = res.headers["x-nonce"];
-              const lastUploadedHash = res.headers["x-last-uploaded-hash"];
-              const generationIndex = res.headers["x-generation-index"];
+              const lastUploadedHash =
+                res.headers?.["x-last-uploaded-hash"] ||
+                "0000000000000000000000000000000000000000000000000000000000000000";
+              const generationIndex = res.headers?.["x-generation-index"] || 0;
 
-              if (nonce && lastUploadedHash && generationIndex) {
+              console.log({ nonce, lastUploadedHash, generationIndex });
+
+              if (nonce) {
                 resolve({
                   nonce: nonce as string,
                   lastUploadedHash: lastUploadedHash as string,
@@ -460,9 +464,7 @@ export class PropagationServer {
   }
 
   // Helper method to create a stream with retry logic
-  private async createReadStreamWithRetries(
-    url: string
-  ): Promise<Readable> {
+  private async createReadStreamWithRetries(url: string): Promise<Readable> {
     let attempt = 0;
     const maxRetries = PropagationServer.maxRetries;
     const initialDelay = PropagationServer.initialDelay;

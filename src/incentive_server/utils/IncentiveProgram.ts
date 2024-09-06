@@ -123,6 +123,10 @@ class IncentiveProgram {
   private async save(): Promise<void> {
     await IncentiveProgram.nconfManager.setConfigValue(this.data.storeId, this.data);
   }
+
+  public async runContest() {
+    
+  }
 }
 
 export { IncentiveProgram, IncentiveProgramData };

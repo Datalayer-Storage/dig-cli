@@ -26,7 +26,9 @@ export class FullNodePeer {
   private peer: Peer;
 
   static {
-    FullNodePeer.memoizedFetchNewPeerIPs = memoize(FullNodePeer.fetchNewPeerIPs);
+    FullNodePeer.memoizedFetchNewPeerIPs = memoize(
+      FullNodePeer.fetchNewPeerIPs
+    );
   }
 
   private constructor(peer: Peer) {
@@ -55,12 +57,23 @@ export class FullNodePeer {
     });
   }
 
+  private static isValidIpAddress(ip: string): boolean {
+    const ipv4Regex =
+      /^(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+
+    return ipv4Regex.test(ip);
+  }
+
   private static async fetchNewPeerIPs(): Promise<string[]> {
     const trustedNodeIp = process.env.TRUSTED_NODE_IP || null;
     const priorityIps: string[] = [];
 
     // Prioritize trustedNodeIp
-    if (trustedNodeIp && await FullNodePeer.isPortReachable(trustedNodeIp, FULLNODE_PORT)) {
+    if (
+      trustedNodeIp &&
+      FullNodePeer.isValidIpAddress(trustedNodeIp) &&
+      (await FullNodePeer.isPortReachable(trustedNodeIp, FULLNODE_PORT))
+    ) {
       priorityIps.push(trustedNodeIp);
     }
 
@@ -93,7 +106,9 @@ export class FullNodePeer {
           }
         }
       } catch (error: any) {
-        console.error(`Failed to resolve IPs from ${DNS_HOST}: ${error.message}`);
+        console.error(
+          `Failed to resolve IPs from ${DNS_HOST}: ${error.message}`
+        );
       }
     }
     throw new Error("No reachable IPs found in any DNS records.");
@@ -179,10 +194,17 @@ export class FullNodePeer {
       peerIPs.map(async (ip) => {
         if (ip) {
           try {
-            const peer = await Peer.new(`${ip}:${FULLNODE_PORT}`, false, certFile, keyFile);
+            const peer = await Peer.new(
+              `${ip}:${FULLNODE_PORT}`,
+              false,
+              certFile,
+              keyFile
+            );
             return FullNodePeer.createPeerProxy(peer, certFile, keyFile);
           } catch (error: any) {
-            console.error(`Failed to create peer for IP ${ip}: ${error.message}`);
+            console.error(
+              `Failed to create peer for IP ${ip}: ${error.message}`
+            );
             return null;
           }
         }
@@ -208,7 +230,9 @@ export class FullNodePeer {
       )
     );
 
-    const validHeights = peakHeights.filter((height) => height !== null) as number[];
+    const validHeights = peakHeights.filter(
+      (height) => height !== null
+    ) as number[];
 
     if (validHeights.length === 0) {
       throw new Error("No valid peak heights obtained from any peer.");
@@ -225,7 +249,9 @@ export class FullNodePeer {
 
     // If LOCALHOST or TRUSTED_NODE_IP don't have the highest peak, select any peer with the highest peak
     if (bestPeerIndex === -1) {
-      bestPeerIndex = validHeights.findIndex((height) => height === highestPeak);
+      bestPeerIndex = validHeights.findIndex(
+        (height) => height === highestPeak
+      );
     }
 
     const bestPeer = peers[bestPeerIndex];

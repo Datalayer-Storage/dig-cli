@@ -1,6 +1,6 @@
 {
   "name": "dig-cli",
-  "version": "0.0.49",
+  "version": "1.0.0-alpha.1",
   "description": "",
   "type": "commonjs",
   "main": "./dist/index.js",
@@ -17,14 +17,15 @@
     "postrelease": "npm run build && git push --follow-tags && npm publish",
     "start-propagation-server": "ts-node src/propagation_server/index.ts",
     "start-content-server": "ts-node src/content_server/index.ts",
-    "start-sync-service": "ts-node src/sync_service/index.ts",
+    "start-incentive-server": "ts-node src/incentive_server/index.ts",
+
     "build-content-server": "docker build -t dig-content-server -f Dockerfile.content_server .",
     "build-propagation-server": "docker build -t dig-propagation-server -f Dockerfile.propagation_server .",
-    "build-chia-downloader": "docker build -t dig-chia-downloader -f Dockerfile.chia_downloader .",
-    "release-chia-downloader": "npm run build-chia-downloader && docker tag dig-chia-downloader michaeltaylor3d/dig-chia-downloader:latest && docker push michaeltaylor3d/dig-chia-downloader:latest",
-    "release-propagation-server": "npm run build-propagation-server && docker tag dig-propagation-server michaeltaylor3d/dig-propagation-server:latest && docker push michaeltaylor3d/dig-propagation-server:latest",
-    "release-content-server": "npm run build-content-server && docker tag dig-content-server michaeltaylor3d/dig-content-server:latest && docker push michaeltaylor3d/dig-content-server:latest",
-    "release-docker": "npm run release-propagation-server && npm run release-content-server"
+    "build-incentive-server": "docker build -t dig-incentive-server -f Dockerfile.incentive_server .",
+    "release-propagation-server": "npm run build-propagation-server && docker tag dig-propagation-server michaeltaylor3d/dig-propagation-server:1.0.0-alpha.1 && docker push michaeltaylor3d/dig-propagation-server:1.0.0-alpha.1",
+    "release-content-server": "npm run build-content-server && docker tag dig-content-server michaeltaylor3d/dig-content-server:1.0.0-alpha.1 && docker push michaeltaylor3d/dig-content-server:1.0.0-alpha.1",
+    "release-incentive-server": "npm run build-incentive-server && docker tag dig-incentive-server michaeltaylor3d/dig-incentive-server:1.0.0-alpha.1 && docker push michaeltaylor3d/dig-incentive-server:1.0.0-alpha.1",
+    "release-docker": "npm run release-propagation-server && npm run release-content-server && npm run release-incentive-server"
   },
   "author": "",
   "license": "ISC",
@@ -34,6 +35,7 @@
     "LICENSE"
   ],
   "dependencies": {
+    "async-mutex": "^0.5.0",
     "bip39": "^3.1.0",
     "chia-bls": "^1.0.2",
     "chia-config-loader": "^1.0.1",
@@ -42,8 +44,7 @@
     "chia-wallet": "^1.0.18",
     "cli-progress": "^3.12.0",
     "crypto-js": "^4.2.0",
-    "datalayer-driver": "^0.1.17",
-    "dig-cli": "^0.0.47",
+    "datalayer-driver": "^0.1.20",
     "express": "^4.19.2",
     "fs-extra": "^11.2.0",
     "ignore": "^5.3.2",

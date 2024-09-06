@@ -93,8 +93,8 @@ export const getCoinState = (
   }
 
   const stateContent = fs.readFileSync(stateFile, "utf-8");
-  const { latestInfo } = JSON.parse(stateContent);
-  return latestInfo;
+  const { latestStore } = JSON.parse(stateContent);
+  return latestStore;
 };
 
 /**

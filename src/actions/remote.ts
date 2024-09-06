@@ -8,8 +8,8 @@ import * as https from "https";
 import { ensureDigConfig, DIG_FOLDER_PATH } from "../utils/config";
 import { getOrCreateSSLCerts } from "../utils/ssl";
 import { promptCredentials } from "../utils";
-import { getMnemonic } from "../blockchain/mnemonic";
-import { getServerCoinsByLauncherId } from "../blockchain/server_coin";
+import { Wallet } from "../blockchain";
+import { ServerCoin } from "../blockchain";
 
 export const setRemote = (remote: string): void => {
   _setRemote(remote);
@@ -19,7 +19,7 @@ export const setActiveStore = (storeId: string): void => {
   _setActiveStore(storeId);
 };
 
-const syncOrSetRemoteSeed = async (mnemonic: string): Promise<void> => {
+const syncOrSetRemoteSeed = async (walletName: string, mnemonic: string): Promise<void> => {
   const config = await ensureDigConfig(DIG_FOLDER_PATH);
 
   if (!config?.remote) {
@@ -43,7 +43,7 @@ const syncOrSetRemoteSeed = async (mnemonic: string): Promise<void> => {
       .set("Authorization", `Basic ${auth}`)
       .set("Content-Type", "application/json")
       .agent(agent) // Use the custom HTTPS agent
-      .send({ mnemonic });
+      .send({ mnemonic, walletName });
 
     if (response.ok) {
       console.log("Seed phrase successfully set on remote.");
@@ -56,18 +56,19 @@ const syncOrSetRemoteSeed = async (mnemonic: string): Promise<void> => {
   }
 };
 
-export const syncRemoteSeed = async (): Promise<void> => {
-  const mnemonic = await getMnemonic();
+export const syncRemoteSeed = async (walletName: string = 'default'): Promise<void> => {
+  const wallet = await Wallet.load(walletName);
+  const mnemonic = wallet.getMnemonic();
 
   if (!mnemonic) {
     throw new Error("No seed phrase found, please create one first");
   }
 
-  await syncOrSetRemoteSeed(mnemonic);
+  await syncOrSetRemoteSeed(walletName, mnemonic);
 };
 
-export const setRemoteSeed = async (mnemonic: string): Promise<void> => {
-  await syncOrSetRemoteSeed(mnemonic);
+export const setRemoteSeed = async (walletName: string = 'default', mnemonic: string): Promise<void> => {
+  await syncOrSetRemoteSeed(walletName, mnemonic);
 };
 
 export const subscribeToStore = async (storeId: string): Promise<void> => {
@@ -82,7 +83,9 @@ export const subscribeToStore = async (storeId: string): Promise<void> => {
     throw new Error("Invalid storeId. Must be a 64-character hexadecimal string." );
   }
 
-  const storeMirrors = await getServerCoinsByLauncherId(storeId);
+  const serverCoin = new ServerCoin(storeId);
+
+  const storeMirrors = await serverCoin.sampleCurrentEpoch(1);
 
   if (storeMirrors.length === 0) {
     throw new Error("Cannot find any mirrors for the store, unable to subscribe.");

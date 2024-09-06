@@ -149,27 +149,34 @@ export function remoteCommand(yargs: Argv<{}>) {
             }
           )
           .command(
-            "seed <seed>",
+            "seed <seed> [walletName]",
             "Set the mnemonic seed on the remote datastore",
             // @ts-ignore
             (yargs: Argv<{ seed: string }>) => {
               return yargs.positional("seed", {
                 type: "string",
                 describe: "The seed phrase to set on the remote",
-              });
+              }).positional("walletName", {
+                describe: "Optional wallet name to perform the action on",
+                type: "string",
+              })
             },
-            async (argv: { seed: string }) => {
-              await handlers.setRemoteSeed(argv.seed);
+            async (argv: { walletName: string, seed: string }) => {
+              await handlers.setRemoteSeed(argv.walletName, argv.seed);
             }
           );
       })
       .command("sync", "Sync operations", (yargs: Argv) => {
         return yargs.command(
-          "seed",
+          "seed [walletName]",
           "Sync the mnemonic seed with the remote datastore",
-          (yargs: Argv) => yargs, // No positional arguments
-          async () => {
-            await handlers.syncRemoteSeed();
+          (yargs: Argv) =>
+            yargs.positional("walletName", {
+              describe: "Optional wallet name to perform the action on",
+              type: "string",
+            }),
+          async (argv: { walletName?: string }) => {
+            await handlers.syncRemoteSeed(argv.walletName);
           }
         );
       })
@@ -203,15 +210,25 @@ export function remoteCommand(yargs: Argv<{}>) {
 
 export function keysCommand(yargs: Argv<{}>) {
   // @ts-ignore
-  return yargs.command<{ action: string; mnemonic?: string }>(
-    "keys <action>",
+  return yargs.command<{
+    action: string;
+    mnemonic?: string;
+    walletName?: string;
+  }>(
+    "wallet <action> [walletName]",
     "Manage cryptographic keys",
-    (yargs: Argv<{ action: string; mnemonic?: string }>) => {
+    (
+      yargs: Argv<{ action: string; mnemonic?: string; walletName?: string }>
+    ) => {
       return yargs
         .positional("action", {
           describe: "Action to perform on keys",
           type: "string",
-          choices: ["import", "generate", "delete", "show"],
+          choices: ["import", "new", "delete", "show"],
+        })
+        .positional("walletName", {
+          describe: "Optional wallet name to perform the action on",
+          type: "string",
         })
         .option("mnemonic", {
           type: "string",
@@ -220,8 +237,12 @@ export function keysCommand(yargs: Argv<{}>) {
         })
         .strict(); // Ensures that only the defined options are accepted
     },
-    async (argv: { action: string; mnemonic?: string }) => {
-      await handlers.manageKeys(argv.action, argv.mnemonic);
+    async (argv: {
+      action: string;
+      mnemonic?: string;
+      walletName?: string;
+    }) => {
+      await handlers.manageKeys(argv.action, argv.mnemonic, argv.walletName);
     }
   );
 }

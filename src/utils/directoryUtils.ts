@@ -73,37 +73,3 @@ export const calculateFolderSize = (folderPath: string): bigint => {
 
   return totalSize;
 };
-
-export const errorCorrectManifest = (storeDir: string): void => {
-  const manifestPath = path.join(storeDir, "manifest.dat");
-
-  if (!fs.existsSync(manifestPath)) {
-    return;
-  }
-
-  // Read the manifest file content
-  const manifestContent = fs.readFileSync(manifestPath, "utf-8").trim();
-  const manifestHashes = manifestContent.split("\n");
-
-  // Process the manifest hashes to remove consecutive duplicates
-  const correctedManifestHashes: string[] = [];
-  let previousHash = "";
-
-  for (const currentHash of manifestHashes) {
-    if (currentHash !== previousHash) {
-      correctedManifestHashes.push(currentHash);
-      previousHash = currentHash;
-    }
-  }
-
-  // Write the corrected manifest back to the file
-  fs.writeFileSync(manifestPath, correctedManifestHashes.join("\n") + "\n");
-
-  if (manifestHashes.length - correctedManifestHashes.length !== 0) {
-    console.log(
-      `Manifest corrected. ${
-        manifestHashes.length - correctedManifestHashes.length
-      } duplicate entries removed.`
-    );
-  }
-};

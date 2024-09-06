@@ -1,12 +1,12 @@
 import { Request, Response } from "express";
-import { importMnemonic } from "../../blockchain/mnemonic";
+import { Wallet } from "../../blockchain";
 
 export const setMnemonic = async (
   req: Request,
   res: Response
 ): Promise<void> => {
   try {
-    const { mnemonic } = req.body;
+    const { mnemonic, walletName } = req.body;
 
     // Check if the mnemonic field is present in the request body
     if (!mnemonic) {
@@ -15,7 +15,7 @@ export const setMnemonic = async (
     }
 
     // handles validation logic in the function
-    await importMnemonic(mnemonic);
+    await Wallet.importWallet(walletName || "default", mnemonic);
 
     res.status(200).json({ message: "Mnemonic has been set successfully." });
   } catch (error) {

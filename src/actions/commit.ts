@@ -1,26 +1,23 @@
 import path from "path";
 import fs from "fs";
 import { addDirectory, calculateFolderSize, waitForPromise } from "../utils";
-import { DataIntegrityTree } from "../DataIntegrityTree";
-import {
-  validateStore,
-  updateDataStoreMetadata,
-  getLatestStoreInfo,
-} from "../blockchain/datastore";
+import { DataStore, FullNodePeer } from "../blockchain";
 import {
   getManifestFilePath,
   loadDigConfig,
-  getActiveStoreId,
-  STORE_PATH
+  STORE_PATH,
 } from "../utils/config";
-import { waitForConfirmation } from "../blockchain/coins";
-import { getPeer } from "../blockchain/peer";
-import { errorCorrectManifest } from "../utils";
 
 export const commit = async (): Promise<void> => {
   try {
+    const dataStore = await DataStore.getActiveStore();
+
+    if (!dataStore) {
+      throw new Error("Store ID not found. Please run init first.");
+    }
+
     let storeIntegrityCheck = await waitForPromise(
-      () => validateStore(),
+      () => dataStore.validate(),
       "Checking store integrity...",
       "Store integrity check passed.",
       "Store integrity check failed."
@@ -30,65 +27,48 @@ export const commit = async (): Promise<void> => {
       throw new Error("Store integrity check failed.");
     }
 
-    const storeId = await getActiveStoreId();
-
-    errorCorrectManifest(`${STORE_PATH}/${storeId}`);
-
-    if (!storeId) {
-      throw new Error("Store ID not found. Please run init first.");
-    }
-
-    const { latestInfo } = await getLatestStoreInfo(storeId);
-    if (!latestInfo) {
+    const { latestStore } = await dataStore.fetchCoinInfo();
+    if (!latestStore) {
       throw new Error("Store info not found. Please run init first.");
     }
 
-    const onChainRootHash = latestInfo.metadata.rootHash.toString("hex");
-    await catchUpWithManifest(
-      onChainRootHash,
-      latestInfo.launcherId.toString("hex")
-    );
-
-    const datalayer = new DataIntegrityTree(storeId.toString("hex"), {
-      storageMode: "local",
-      storeDir: STORE_PATH,
-      disableInitialize: true,
-    });
+    await catchUpWithManifest(dataStore);
+  
 
     // When doing file based inserts, we want the tree to be an exact replica of the build directory
     // regardless of what was previously in the tree, so we are zeroing it out first before we add a new generation
-    datalayer.deleteAllLeaves();
+    dataStore.Tree.deleteAllLeaves();
 
     const digConfig = await loadDigConfig(process.cwd());
-
+  
     await addDirectory(
-      datalayer,
+      dataStore.Tree,
       path.join(process.cwd(), digConfig.deploy_dir)
     );
 
-    const newRootHash = datalayer.commit();
+    const newRootHash = dataStore.Tree.commit();
 
     if (!newRootHash) {
       return;
     }
 
-    const totalBytes = calculateFolderSize(path.resolve(STORE_PATH, storeId.toString("hex")));
+    const totalBytes = calculateFolderSize(
+      path.resolve(STORE_PATH, dataStore.StoreId)
+    );
 
     console.log(
       `Updating store metadata with new root hash: ${newRootHash}, bytes: ${totalBytes}`
     );
 
-    const updatedStoreInfo = await updateDataStoreMetadata({
-      ...latestInfo.metadata,
+    const updatedStoreInfo = await dataStore.updateMetadata({
+      ...latestStore.metadata,
       rootHash: Buffer.from(newRootHash, "hex"),
       bytes: totalBytes,
     });
 
-    const peer = await getPeer();
-
-    await waitForConfirmation(peer, updatedStoreInfo.coin.parentCoinInfo);
+    await FullNodePeer.waitForConfirmation(updatedStoreInfo.coin.parentCoinInfo);
     storeIntegrityCheck = await waitForPromise(
-      () => validateStore(),
+      () => dataStore.validate(),
       "Checking store integrity...",
       "Store integrity check passed.",
       "Store integrity check failed."
@@ -99,15 +79,14 @@ export const commit = async (): Promise<void> => {
     }
 
     await waitForPromise(
-      () => getLatestStoreInfo(storeId),
+      () => dataStore.fetchCoinInfo(),
       "Finalizing commit...",
       "Commit successful",
       "Failed to commit."
     );
 
-    errorCorrectManifest(`${STORE_PATH}/${storeId}`);
-
     console.log("Commit successful");
+    
   } catch (error: any) {
     console.error("Failed to commit:", error.message);
   } finally {
@@ -115,18 +94,17 @@ export const commit = async (): Promise<void> => {
   }
 };
 
-const catchUpWithManifest = async (
-  onChainRootHash: string,
-  storeId: string
-) => {
-  const peer = await getPeer();
+const catchUpWithManifest = async (dataStore: DataStore) => {
   const manifest = fs
-    .readFileSync(getManifestFilePath(storeId), "utf-8")
+    .readFileSync(getManifestFilePath(dataStore.StoreId), "utf-8")
     .trim();
   const manifestRootHashes = manifest.split("\n");
 
   // Find the index of the last on-chain root hash in the manifest
-  const lastOnChainIndex = manifestRootHashes.lastIndexOf(onChainRootHash);
+  const metadata = await dataStore.getMetaData();
+  const lastOnChainIndex = manifestRootHashes.lastIndexOf(
+    metadata.rootHash.toString("hex")
+  );
 
   if (lastOnChainIndex === -1) {
     throw new Error("On-chain root hash not found in the manifest file.");
@@ -142,12 +120,12 @@ const catchUpWithManifest = async (
 
     for (const rootHash of hashesToCommit) {
       console.log(`Committing root hash: ${rootHash}`);
-      const updatedStoreInfo = await updateDataStoreMetadata({
+      const updatedStoreInfo = await dataStore.updateMetadata({
         rootHash: Buffer.from(rootHash, "hex"),
-        bytes: calculateFolderSize(path.resolve(STORE_PATH, storeId)),
+        bytes: calculateFolderSize(path.resolve(STORE_PATH, dataStore.StoreId)),
       });
 
-      await waitForConfirmation(peer, updatedStoreInfo.coin.parentCoinInfo);
+      await FullNodePeer.waitForConfirmation(updatedStoreInfo.coin.parentCoinInfo);
     }
 
     console.log("Catch-up with manifest completed.");

@@ -1,3 +1,5 @@
+import { Coin } from "datalayer-driver";
+
 export interface FileDetails {
   filename: string;
   sha256: string;
@@ -44,3 +46,27 @@ export interface Credentials {
   username: string;
   password: string;
 }
+
+export interface CoinData {
+  amount: string;
+  puzzleHash: string;
+  parentCoinInfo: string;
+}
+
+export interface ServerCoinData {
+  coin: CoinData;
+  createdAt: string; // ISO date string
+  epoch: number;
+}
+
+export interface IncentiveProgramData {
+  storeId: string;
+  xchRewardPerEpoch: number;
+  totalRoundsPerEpoch: number;
+  totalRoundsCompleted?: number;
+  paymentTotalToDate?: number;
+  active: boolean;
+  lastEpochPaid?: number;
+  walletName: string;
+}
+

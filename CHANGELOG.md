@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.0.0](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.49...v1.0.0) (2024-09-06)
+
+
+### Features
+
+* add auto melt server coin ([a63713f](https://github.com/Datalayer-Storage/dig-cli/commit/a63713f394079f1608e44e87f6e11b047eada716))
+* create Wallet class ([60f0697](https://github.com/Datalayer-Storage/dig-cli/commit/60f06977a06a8a9473b76711f615d3b2e6e05570))
+* refactor to Dig classes ([d973d0b](https://github.com/Datalayer-Storage/dig-cli/commit/d973d0baf1f9208a5ce022fa4d31083920181ec5))
+* set up incentives module ([85104a4](https://github.com/Datalayer-Storage/dig-cli/commit/85104a45d60f0b4a558cce9e46050ae8b0fabc86))
+* upgrade datalayer-driver ([62e9f46](https://github.com/Datalayer-Storage/dig-cli/commit/62e9f4653b2d9ac759f85035b34e7f554627a6bd))
+
 ### [0.0.49](https://github.com/Datalayer-Storage/dig-cli/compare/v0.0.48...v0.0.49) (2024-08-30)
 
 

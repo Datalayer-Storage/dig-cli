@@ -1,7 +1,6 @@
 import { generateHighEntropyValue } from "../utils/credentialsUtils";
 import inquirer from "inquirer";
-import { NconfManager } from "../utils/nconfManager";
-import { encryptData } from "../utils/encryption";
+import { NconfManager } from "../utils/NconfManager";
 import { encryptAndStoreCredentials } from "../utils/credentialsUtils";
 
 export const generateEntropyValue = async () => {

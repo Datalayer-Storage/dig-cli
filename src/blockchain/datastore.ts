@@ -7,545 +7,585 @@ import {
   mintStore,
   signCoinSpends,
   CoinSpend,
-  DataStoreInfo,
+  DataStore as DataStoreDriver,
   getCoinId,
   DataStoreMetadata,
   addFee,
   updateStoreMetadata,
   syntheticKeyToPuzzleHash,
 } from "datalayer-driver";
-import { getPeer } from "./peer";
+import { FullNodePeer } from "./FullNodePeer";
+import { Wallet } from "./Wallet";
 import {
-  getPublicSyntheticKey,
-  getPrivateSyntheticKey,
-  getOwnerPuzzleHash,
-} from "./keys";
-import {
-  NETWORK_AGG_SIG_DATA,
   MIN_HEIGHT,
   MIN_HEIGHT_HEADER_HASH,
   getManifestFilePath,
-  getHeightFilePath,
   getActiveStoreId,
   STORE_PATH,
 } from "../utils/config";
 import { selectUnspentCoins, calculateFeeForCoinSpends } from "./coins";
 import { RootHistoryItem, DatFile } from "../types";
 import { validateFileSha256 } from "../utils";
-import { getCachedStoreInfo, cacheStoreInfo } from "./cache";
 
-export const mintDataLayerStore = async (
-  label?: string,
-  description?: string,
-  sizeInBytes?: bigint,
-  authorizedWriterPublicSyntheticKey?: string,
-  adminPublicSyntheticKey?: string
-): Promise<DataStoreInfo> => {
-  try {
-    const peer = await getPeer();
-    const publicSyntheticKey = await getPublicSyntheticKey();
-    const ownerSyntheicPuzzleHash =
-      syntheticKeyToPuzzleHash(publicSyntheticKey);
-    const storeCreationCoins = await selectUnspentCoins(
-      peer,
-      BigInt(1),
-      BigInt(0)
-    );
-    const delegationLayers = [];
+import {
+  DataIntegrityTree,
+  DataIntegrityTreeOptions,
+} from "../DataIntegrityTree";
+import { CreateStoreUserInputs } from "../types";
+import { askForStoreDetails } from "../prompts";
+import { FileCache } from "../utils/FileCache";
+import { DataStoreSerializer } from "./DataStoreSerializer";
 
-    if (adminPublicSyntheticKey) {
-      delegationLayers.push(
-        adminDelegatedPuzzleFromKey(Buffer.from(adminPublicSyntheticKey, "hex"))
-      );
+export class DataStore {
+  private storeId: string;
+  private tree: DataIntegrityTree;
+
+  constructor(storeId: string, options?: DataIntegrityTreeOptions) {
+    this.storeId = storeId;
+
+    let _options: DataIntegrityTreeOptions;
+
+    if (options) {
+      _options = options;
+    } else {
+      _options = {
+        storageMode: "local",
+        storeDir: STORE_PATH,
+      };
     }
 
-    if (authorizedWriterPublicSyntheticKey) {
-      delegationLayers.push(
-        writerDelegatedPuzzleFromKey(
-          Buffer.from(authorizedWriterPublicSyntheticKey, "hex")
-        )
-      );
-    }
-
-    delegationLayers.push(
-      oracleDelegatedPuzzle(ownerSyntheicPuzzleHash, BigInt(100000))
-    );
-
-    const rootHash = Buffer.from(
-      "0000000000000000000000000000000000000000000000000000000000000000",
-      "hex"
-    );
-
-    // Array of parameters for mintStore
-    const mintStoreParams = [
-      publicSyntheticKey,
-      storeCreationCoins,
-      rootHash,
-      label || undefined,
-      description || undefined,
-      sizeInBytes || BigInt(0),
-      ownerSyntheicPuzzleHash,
-      delegationLayers,
-    ];
-
-    // Preflight call to mintStore without a fee
-    const { coinSpends: preflightCoinSpends } = await mintStore.apply(null, [
-      // @ts-ignore
-      ...mintStoreParams,
-      // @ts-ignore
-      BigInt(0),
-    ]);
-
-    // Calculate fee based on the coin spends from the preflight call
-    const fee = await calculateFeeForCoinSpends(peer, preflightCoinSpends);
-
-    // Final call to mintStore with the calculated fee
-    const storeCreationResponse = await mintStore.apply(null, [
-      // @ts-ignore
-      ...mintStoreParams,
-      // @ts-ignore
-      fee,
-    ]);
-
-    const sig = signCoinSpends(
-      storeCreationResponse.coinSpends,
-      [await getPrivateSyntheticKey()],
-      Buffer.from(NETWORK_AGG_SIG_DATA, "hex")
-    );
-
-    const err = await peer.broadcastSpend(
-      storeCreationResponse.coinSpends as CoinSpend[],
-      [sig]
-    );
-
-    if (err) {
-      throw new Error(err);
-    }
-
-    // Add some time to get out of the mempool
-    await new Promise((resolve) => setTimeout(resolve, 5000));
-
-    return storeCreationResponse.newInfo;
-  } catch (error) {
-    console.error("Unable to mint store");
-    console.trace(error);
-    throw error;
+    this.tree = new DataIntegrityTree(storeId, _options);
   }
-};
 
-// Function to get the latest store info with caching and synchronization
-export const getLatestStoreInfo = async (
-  storeId: Buffer
-): Promise<{
-  latestInfo: DataStoreInfo;
-  latestHeight: number;
-  latestHash: Buffer;
-}> => {
-  
-  const cachedInfo = getCachedStoreInfo(storeId.toString("hex"));
+  public get StoreId(): string {
+    return this.storeId;
+  }
 
-  if (cachedInfo) {
+  public get Tree(): DataIntegrityTree {
+    return this.tree;
+  }
+
+  public toBuffer(): Buffer {
+    return Buffer.from(this.storeId, "hex");
+  }
+
+  public toString(): string {
+    return this.storeId;
+  }
+
+  public serialize(): string {
+    return JSON.stringify({
+      storeId: this.storeId,
+    });
+  }
+
+  public static async getActiveStore(): Promise<DataStore | undefined> {
+    const storeId = await getActiveStoreId();
+    if (storeId) {
+      return DataStore.from(storeId.toString("hex"));
+    }
+  }
+
+  public static deserialize(serialized: string): DataStore {
+    const parsed = JSON.parse(serialized);
+    return new DataStore(parsed.storeId);
+  }
+
+  public static from(storeId: string | Buffer): DataStore {
+    const existingTreeOptions: DataIntegrityTreeOptions = {
+      storageMode: "local",
+      storeDir: STORE_PATH,
+      disableInitialize: true,
+    };
+    if (storeId instanceof Buffer) {
+      return new DataStore(storeId.toString("hex"), existingTreeOptions);
+    }
+    return new DataStore(storeId, existingTreeOptions);
+  }
+
+  public static async create(
+    inputs: CreateStoreUserInputs = {}
+  ): Promise<DataStore> {
+    const finalInputs = await askForStoreDetails(inputs);
+
     try {
-      const {
-        latestInfo: previousInfo,
-        latestHeight: previousHeight,
-        latestHash: previousHash,
-      } = cachedInfo;
+      const newStoreCoin: DataStoreDriver = await this.mint(
+        finalInputs.label!,
+        finalInputs.description!,
+        BigInt(0),
+        finalInputs.authorizedWriter
+      );
 
-      const peer = await getPeer();
-      const { latestInfo, latestHeight } = await peer.syncStore(
-        previousInfo,
-        previousHeight,
-        previousHash,
+      console.log("Store submitted to mempool");
+      console.log(`Store ID: ${newStoreCoin.launcherId.toString("hex")}`);
+
+      try {
+        console.log(`Coin ID: ${getCoinId(newStoreCoin.coin).toString("hex")}`);
+        await FullNodePeer.waitForConfirmation(
+          newStoreCoin.coin.parentCoinInfo
+        );
+      } catch (error: any) {
+        console.error(error.message);
+      }
+
+      return new DataStore(newStoreCoin.launcherId.toString("hex"));
+    } catch (error) {
+      console.error("Failed to mint Data Layer Store:", error);
+      throw error;
+    }
+  }
+
+  private static async mint(
+    label?: string,
+    description?: string,
+    sizeInBytes?: bigint,
+    authorizedWriterPublicSyntheticKey?: string,
+    adminPublicSyntheticKey?: string
+  ): Promise<DataStoreDriver> {
+    try {
+      const peer = await FullNodePeer.connect();
+      const wallet = await Wallet.load("default");
+      const publicSyntheticKey = await wallet.getPublicSyntheticKey();
+      const ownerSyntheicPuzzleHash =
+        syntheticKeyToPuzzleHash(publicSyntheticKey);
+      const storeCreationCoins = await selectUnspentCoins(
+        peer,
+        BigInt(1),
+        BigInt(0)
+      );
+
+      const delegationLayers = [];
+      if (adminPublicSyntheticKey) {
+        delegationLayers.push(
+          adminDelegatedPuzzleFromKey(
+            Buffer.from(adminPublicSyntheticKey, "hex")
+          )
+        );
+      }
+      if (authorizedWriterPublicSyntheticKey) {
+        delegationLayers.push(
+          writerDelegatedPuzzleFromKey(
+            Buffer.from(authorizedWriterPublicSyntheticKey, "hex")
+          )
+        );
+      }
+      delegationLayers.push(
+        oracleDelegatedPuzzle(ownerSyntheicPuzzleHash, BigInt(100000))
+      );
+
+      const rootHash = Buffer.from(
+        "0000000000000000000000000000000000000000000000000000000000000000",
+        "hex"
+      );
+
+      const mintStoreParams = [
+        publicSyntheticKey,
+        storeCreationCoins,
+        rootHash,
+        label || undefined,
+        description || undefined,
+        sizeInBytes || BigInt(0),
+        ownerSyntheicPuzzleHash,
+        delegationLayers,
+      ];
+
+      const { coinSpends: preflightCoinSpends } = await mintStore(
+        // @ts-ignore
+        ...mintStoreParams,
+        // @ts-ignore
+        BigInt(0)
+      );
+      const fee = await calculateFeeForCoinSpends(peer, preflightCoinSpends);
+
+      const storeCreationResponse = await mintStore.apply(null, [
+        // @ts-ignore
+        ...mintStoreParams,
+        // @ts-ignore
+        fee,
+      ]);
+
+      const sig = signCoinSpends(
+        storeCreationResponse.coinSpends,
+        [await wallet.getPrivateSyntheticKey()],
         false
       );
-
-      const latestHash = await peer.getHeaderHash(latestHeight);
-
-      // Cache the latest store info in the file system
-      cacheStoreInfo(
-        storeId.toString("hex"),
-        latestInfo,
-        latestHeight,
-        latestHash
+      const err = await peer.broadcastSpend(
+        storeCreationResponse.coinSpends as CoinSpend[],
+        [sig]
       );
 
-      return { latestInfo, latestHeight, latestHash };
-    } catch {
-      // Any error usually indicates unknown coin meaning no new coin spend since last cache
-      return cachedInfo;
-    }
-  }
+      if (err) {
+        throw new Error(err);
+      }
 
-  const heightFilePath = getHeightFilePath(storeId.toString("hex"));
+      await new Promise((resolve) => setTimeout(resolve, 5000));
 
-  let createdAtHeight: number | undefined;
-  let createdAtHash: string | undefined;
-
-  // Check if the height.dat file exists and read it if it does
-  if (fs.existsSync(heightFilePath)) {
-    try {
-      const heightFile = fs.readFileSync(heightFilePath, "utf-8");
-      const parsedHeightFile = JSON.parse(heightFile || "{}");
-      createdAtHeight = parsedHeightFile.createdAtHeight;
-      createdAtHash = parsedHeightFile.createdAtHash;
+      return storeCreationResponse.newStore;
     } catch (error) {
-      console.error("Error reading or parsing height.dat file:", error);
+      console.error("Unable to mint store");
+      throw error;
     }
   }
 
-  const peer = await getPeer();
+  public static getAllStores(): DataStore[] {
+    const storeFolders = fs.readdirSync(STORE_PATH);
+    const storIds = storeFolders.filter(
+      (folder) =>
+        /^[a-f0-9]{64}$/.test(folder) &&
+        fs.lstatSync(path.join(STORE_PATH, folder)).isDirectory()
+    );
 
-  // If not cached, retrieve the latest store info from the blockchain
-  const { latestInfo, latestHeight } = await peer.syncStoreFromLauncherId(
-    storeId,
-    createdAtHeight || MIN_HEIGHT,
-    Buffer.from(createdAtHash || MIN_HEIGHT_HEADER_HASH, "hex"),
-    false
-  );
+    return storIds.map((storeId) => DataStore.from(storeId));
+  }
 
-  const latestHash = await peer.getHeaderHash(latestHeight);
+  public async fetchCoinInfo(): Promise<{
+    latestStore: DataStoreDriver;
+    latestHeight: number;
+    latestHash: Buffer;
+  }> {
+    // Initialize the cache for the current storeId's coin info
+    const storeCoinCache = new FileCache<{
+      latestStore: ReturnType<DataStoreSerializer["serialize"]>;
+      latestHeight: number;
+      latestHash: string;
+    }>(`stores`);
 
-  // Cache the latest store info in the file system
-  cacheStoreInfo(storeId.toString("hex"), latestInfo, latestHeight, latestHash);
+    // Try to get cached store info
+    const cachedInfo = storeCoinCache.get(this.storeId);
 
-  return { latestInfo, latestHeight, latestHash };
-};
+    if (cachedInfo) {
+      try {
+        const {
+          latestStore: serializedStore,
+          latestHeight: previousHeight,
+          latestHash: previousHash,
+        } = cachedInfo;
 
-export const getStoreCreatedAtHeight = async (): Promise<{
-  createdAtHeight: number;
-  createdAtHash: Buffer;
-}> => {
-  const defaultHeight = MIN_HEIGHT;
-  const defaultHash = Buffer.from(MIN_HEIGHT_HEADER_HASH, "hex");
+        // Deserialize the stored data using DataStoreSerializer
+        const { latestStore: previousInfo } = DataStoreSerializer.deserialize({
+          latestStore: serializedStore,
+          latestHeight: previousHeight.toString(),
+          latestHash: previousHash,
+        });
 
-  try {
-    const storeId = await getActiveStoreId();
-    if (!storeId) {
+        // Sync with peer if necessary
+        const peer = await FullNodePeer.connect();
+        const { latestStore, latestHeight } = await peer.syncStore(
+          previousInfo,
+          previousHeight,
+          Buffer.from(previousHash, "hex"),
+          false
+        );
+        const latestHash = await peer.getHeaderHash(latestHeight);
+
+        // Serialize the store data for caching
+        const serializedLatestStore = new DataStoreSerializer(
+          latestStore,
+          latestHeight,
+          latestHash
+        ).serialize();
+
+        // Cache updated store info
+        storeCoinCache.set(this.storeId, {
+          latestStore: serializedLatestStore,
+          latestHeight,
+          latestHash: latestHash.toString("hex"),
+        });
+
+        return { latestStore, latestHeight, latestHash };
+      } catch {
+        // Return cached info if sync fails
+        const { latestStore, latestHeight, latestHash } =
+          DataStoreSerializer.deserialize({
+            latestStore: cachedInfo.latestStore,
+            latestHeight: cachedInfo.latestHeight.toString(),
+            latestHash: cachedInfo.latestHash,
+          });
+        return {
+          latestStore,
+          latestHeight,
+          latestHash: Buffer.from(cachedInfo.latestHash, "hex"),
+        };
+      }
+    }
+
+    // Use getCreationHeight to retrieve height and hash information
+    const { createdAtHeight, createdAtHash } = await this.getCreationHeight();
+
+    // Sync store from peer
+    const peer = await FullNodePeer.connect();
+    const { latestStore, latestHeight } = await peer.syncStoreFromLauncherId(
+      Buffer.from(this.storeId, "hex"),
+      createdAtHeight,
+      createdAtHash,
+      false
+    );
+
+    const latestHash = await peer.getHeaderHash(latestHeight);
+
+    // Serialize the latest store info for caching
+    const serializedLatestStore = new DataStoreSerializer(
+      latestStore,
+      latestHeight,
+      latestHash
+    ).serialize();
+
+    // Cache the latest store info
+    storeCoinCache.set(this.storeId, {
+      latestStore: serializedLatestStore,
+      latestHeight,
+      latestHash: latestHash.toString("hex"),
+    });
+
+    return { latestStore, latestHeight, latestHash };
+  }
+
+  public async getCreationHeight(): Promise<{
+    createdAtHeight: number;
+    createdAtHash: Buffer;
+  }> {
+    const defaultHeight = MIN_HEIGHT;
+    const defaultHash = Buffer.from(MIN_HEIGHT_HEADER_HASH, "hex");
+
+    // Initialize the FileCache for the height file
+    const fileCache = new FileCache<{ height: number; hash: string }>(
+      `stores/${this.storeId}`
+    );
+
+    // Try to retrieve the cached height information
+    const cachedHeightInfo = fileCache.get("height");
+
+    if (!cachedHeightInfo) {
+      // If no cache, return the default values
       return { createdAtHeight: defaultHeight, createdAtHash: defaultHash };
     }
 
-    const heightFilePath = getHeightFilePath(storeId.toString("hex"));
-
-    // Check if the file exists before attempting to read it
-    if (!fs.existsSync(heightFilePath)) {
-      return { createdAtHeight: defaultHeight, createdAtHash: defaultHash };
-    }
-
-    const heightFile = fs.readFileSync(heightFilePath, "utf-8");
-    const { height, hash } = JSON.parse(heightFile);
+    // Parse the cached height and hash values
+    const { height, hash } = cachedHeightInfo;
 
     return {
       createdAtHeight: height || defaultHeight,
       createdAtHash: Buffer.from(hash || MIN_HEIGHT_HEADER_HASH, "hex"),
     };
-  } catch {
-    return { createdAtHeight: defaultHeight, createdAtHash: defaultHash };
-  }
-};
-
-export const getRootHistory = async (
-  launcherId: Buffer
-): Promise<RootHistoryItem[]> => {
-  const peer = await getPeer();
-
-  if (!launcherId) {
-    throw new Error("No valid data store folder found.");
   }
 
-  const { createdAtHeight, createdAtHash } = await getStoreCreatedAtHeight();
-
-  const { rootHashes, rootHashesTimestamps } =
-    await peer.syncStoreFromLauncherId(
-      launcherId,
-      createdAtHeight,
-      createdAtHash,
-      true
+  private async setCreationHeight(height: number, hash: Buffer): Promise<void> {
+    const fileCache = new FileCache<{ height: number; hash: string }>(
+      `stores/${this.storeId}`
     );
 
-  if (!rootHashes) {
-    return [];
+    // Cache the height and hash information
+    fileCache.set("height", {
+      height,
+      hash: hash.toString("hex"),
+    });
   }
 
-  const rootHistory: RootHistoryItem[] = rootHashes.map((rootHash, index) => {
-    return {
-      root_hash: rootHash.toString("hex"),
-      timestamp: Number(rootHashesTimestamps?.[index].toString()),
-    };
-  });
+  public async getRootHistory(): Promise<RootHistoryItem[]> {
+    const peer = await FullNodePeer.connect();
+    const { createdAtHeight, createdAtHash } = await this.getCreationHeight();
 
-  // hack until fixed in datalayer-driver
-  return rootHistory;
-};
+    const { rootHashes, rootHashesTimestamps } =
+      await peer.syncStoreFromLauncherId(
+        Buffer.from(this.storeId, "hex"),
+        createdAtHeight,
+        createdAtHash,
+        true
+      );
 
-export const hasMetadataWritePermissions = async (
-  storeId: Buffer,
-  publicSyntheticKey?: Buffer,
-  retryCount: number = 10
-): Promise<boolean> => {
-  try {
-    const { latestInfo } = await getLatestStoreInfo(storeId);
-
-    let ownerPuzzleHash;
-
-    if (publicSyntheticKey) {
-      ownerPuzzleHash = syntheticKeyToPuzzleHash(publicSyntheticKey);
-    } else {
-      ownerPuzzleHash = await getOwnerPuzzleHash();
+    if (!rootHashes) {
+      return [];
     }
 
-    const isStoreOwner = latestInfo.ownerPuzzleHash.equals(ownerPuzzleHash);
+    return rootHashes.map((rootHash, index) => ({
+      root_hash: rootHash.toString("hex"),
+      timestamp: Number(rootHashesTimestamps?.[index].toString()),
+    }));
+  }
 
-    const hasWriteAccess = latestInfo.delegatedPuzzles.some(
-      ({ puzzleInfo }) =>
-        puzzleInfo.adminInnerPuzzleHash?.equals(ownerPuzzleHash) ||
-        puzzleInfo.writerInnerPuzzleHash?.equals(ownerPuzzleHash)
+  public async getLocalRootHistory(): Promise<RootHistoryItem[] | undefined> {
+    const manifestFilePath = getManifestFilePath(this.storeId);
+    if (!fs.existsSync(manifestFilePath)) {
+      console.error("Manifest file not found", manifestFilePath);
+      return undefined;
+    }
+
+    const manifestHashes = fs
+      .readFileSync(manifestFilePath, "utf-8")
+      .split("\n")
+      .filter(Boolean);
+    return manifestHashes.map((rootHash) => ({
+      root_hash: rootHash,
+      timestamp: 0, // Timestamps are not yet included in the manifest
+    }));
+  }
+
+  public async validate(): Promise<boolean> {
+    const rootHistory = await this.getRootHistory();
+    const manifestFilePath = getManifestFilePath(this.storeId);
+
+    if (!fs.existsSync(manifestFilePath)) {
+      console.error("Manifest file not found", manifestFilePath);
+      return false;
+    }
+
+    const manifestHashes = fs
+      .readFileSync(manifestFilePath, "utf-8")
+      .split("\n")
+      .filter(Boolean);
+
+    if (manifestHashes.length > rootHistory.length) {
+      console.error(
+        "The store is corrupted: Manifest file has more hashes than the root history."
+      );
+      return false;
+    }
+
+    if (rootHistory.length > manifestHashes.length) {
+      console.error(
+        "The store is not synced: Root history has more hashes than the manifest file."
+      );
+      return false;
+    }
+
+    for (let i = 0; i < manifestHashes.length; i++) {
+      if (manifestHashes[i] !== rootHistory[i]?.root_hash) {
+        console.error(
+          `Root hash mismatch at position ${i}: expected ${manifestHashes[i]} but found ${rootHistory[i]?.root_hash}`
+        );
+        return false;
+      }
+    }
+
+    let filesIntegrityIntact = true;
+    for (const rootHash of manifestHashes) {
+      const datFilePath = path.join(
+        STORE_PATH,
+        this.storeId,
+        `${rootHash}.dat`
+      );
+
+      if (!fs.existsSync(datFilePath)) {
+        console.error(`Data file for root hash ${rootHash} not found`);
+        return false;
+      }
+
+      const datFileContent = JSON.parse(
+        fs.readFileSync(datFilePath, "utf-8")
+      ) as DatFile;
+      if (datFileContent.root !== rootHash) {
+        console.error(
+          `Root hash in data file does not match: ${datFileContent.root} !== ${rootHash}`
+        );
+        return false;
+      }
+
+      for (const [fileKey, fileData] of Object.entries(datFileContent.files)) {
+        const integrityCheck = validateFileSha256(
+          fileData.sha256,
+          path.join(STORE_PATH, this.storeId, "data")
+        );
+        if (!integrityCheck) {
+          filesIntegrityIntact = false;
+        }
+      }
+    }
+
+    if (!filesIntegrityIntact) {
+      console.error("Store Corrupted: Data failed SHA256 validation.");
+      return false;
+    }
+
+    return true;
+  }
+
+  public async getMetaData(): Promise<DataStoreMetadata> {
+    const { latestStore } = await this.fetchCoinInfo();
+    return latestStore.metadata;
+  }
+
+  public async isSynced(): Promise<boolean> {
+    const rootHistory = await this.getRootHistory();
+    const manifestFilePath = getManifestFilePath(this.storeId);
+
+    if (!fs.existsSync(manifestFilePath)) {
+      return false;
+    }
+
+    const manifestHashes = fs
+      .readFileSync(manifestFilePath, "utf-8")
+      .split("\n")
+      .filter(Boolean);
+
+    return rootHistory.length === manifestHashes.length;
+  }
+
+  public async hasMetaWritePermissions(
+    publicSyntheticKey?: Buffer
+  ): Promise<boolean> {
+    const wallet = await Wallet.load("default");
+    const { latestStore } = await this.fetchCoinInfo();
+
+    let ownerPuzzleHash = publicSyntheticKey
+      ? syntheticKeyToPuzzleHash(publicSyntheticKey)
+      : await wallet.getOwnerPuzzleHash();
+
+    const isStoreOwner = latestStore.ownerPuzzleHash.equals(ownerPuzzleHash);
+    const hasWriteAccess = latestStore.delegatedPuzzles.some(
+      (puzzle) =>
+        puzzle.adminInnerPuzzleHash?.equals(ownerPuzzleHash) ||
+        puzzle.writerInnerPuzzleHash?.equals(ownerPuzzleHash)
     );
 
     return isStoreOwner || hasWriteAccess;
-  } catch (error: any) {
-    if (error.message.includes("AlreadyClosed") && retryCount > 0) {
-      console.warn(`Retrying hasMetadataWritePermissions due to WebSocket closure... (${retryCount} retries left)`);
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      return hasMetadataWritePermissions(storeId, publicSyntheticKey, retryCount - 1);
-    } else {
-      console.trace(error.message);
-      throw new Error("Failed to check store ownership.");
-    }
-  }
-};
-
-
-export const updateDataStoreMetadata = async ({
-  rootHash,
-  label,
-  description,
-  bytes,
-}: DataStoreMetadata) => {
-  const storeId = await getActiveStoreId();
-  if (!storeId) {
-    throw new Error("No data store found in the current directory");
   }
 
-  const { latestInfo } = await getLatestStoreInfo(storeId);
+  public async updateMetadata(
+    metadata: DataStoreMetadata
+  ): Promise<DataStoreDriver> {
+    const peer = await FullNodePeer.connect();
+    const wallet = await Wallet.load("default");
+    const publicSyntheticKey = await wallet.getPublicSyntheticKey();
 
-  const peer = await getPeer();
-  const ownerPublicKey = await getPublicSyntheticKey();
-
-  // TODO: to make this work for all users we need a way to get the authorized writer public key as well and not just assume its the owner
-  const updateStoreResponse = updateStoreMetadata(
-    latestInfo,
-    rootHash,
-    label,
-    description,
-    bytes,
-    ownerPublicKey,
-    null,
-    null
-  );
-
-  const fee = await calculateFeeForCoinSpends(peer, null);
-  const unspentCoins = await selectUnspentCoins(peer, BigInt(0), fee);
-  const feeCoinSpends = await addFee(
-    ownerPublicKey,
-    unspentCoins,
-    updateStoreResponse.coinSpends.map((coinSpend) =>
-      getCoinId(coinSpend.coin)
-    ),
-    fee
-  );
-
-  const combinedCoinSpends = [
-    ...(updateStoreResponse.coinSpends as CoinSpend[]),
-    ...(feeCoinSpends as CoinSpend[]),
-  ];
-
-  const sig = signCoinSpends(
-    combinedCoinSpends,
-    [await getPrivateSyntheticKey()],
-    Buffer.from(NETWORK_AGG_SIG_DATA, "hex")
-  );
-
-  const err = await peer.broadcastSpend(combinedCoinSpends, [sig]);
-
-  if (err) {
-    throw new Error(err);
-  }
-
-  return updateStoreResponse.newInfo;
-};
-
-export const getLocalRootHistory = async (): Promise<
-  RootHistoryItem[] | undefined
-> => {
-  const storeId = await getActiveStoreId();
-
-  if (!storeId) {
-    throw new Error("No launcher ID found in the current directory");
-  }
-
-  // Load manifest file
-  const manifestFilePath = getManifestFilePath(storeId.toString("hex"));
-  if (!fs.existsSync(manifestFilePath)) {
-    console.error("Manifest file not found", manifestFilePath);
-    return undefined;
-  }
-
-  const manifestHashes = fs
-    .readFileSync(manifestFilePath, "utf-8")
-    .split("\n")
-    .filter(Boolean);
-
-  return manifestHashes.map((rootHash) => ({
-    root_hash: rootHash,
-    // TODO: alter the manifest file to include timestamps
-    timestamp: 0,
-  }));
-};
-
-export const validateStore = async (): Promise<boolean> => {
-  const storeId = await getActiveStoreId();
-
-  if (!storeId) {
-    console.error("No launcher ID found in the current directory");
-    return false;
-  }
-
-  const rootHistory = await getRootHistory(storeId);
-
-  if (process.env.DIG_DEBUG == "1") {
-    console.log(rootHistory);
-  }
-
-  if (process.env.DIG_DEBUG == "1") {
-    console.log(rootHistory);
-  }
-
-  // Load manifest file
-  const manifestFilePath = getManifestFilePath(storeId.toString("hex"));
-  if (!fs.existsSync(manifestFilePath)) {
-    console.error("Manifest file not found", manifestFilePath);
-    return false;
-  }
-
-  const manifestHashes = fs
-    .readFileSync(manifestFilePath, "utf-8")
-    .split("\n")
-    .filter(Boolean);
-
-  // Check if the manifest file has more hashes than the root history
-  if (manifestHashes.length > rootHistory.length) {
-    console.error(
-      "The store is corrupted: Manifest file has more hashes than the root history."
-    );
-    return false;
-  }
-
-  // Check if the root history has more hashes than the manifest file
-  if (rootHistory.length > manifestHashes.length) {
-    console.error(rootHistory.length, manifestHashes.length);
-    console.error(rootHistory);
-    console.error(manifestHashes);
-    console.error(
-      "The store is not synced: Root history has more hashes than the manifest file."
-    );
-    return false;
-  }
-
-  // Ensure manifest root hashes exist in root history in the same order
-  for (let i = 0; i < manifestHashes.length; i++) {
-    if (manifestHashes[i] !== rootHistory[i]?.root_hash) {
-      console.error(
-        `Root hash mismatch at position ${i}: expected ${manifestHashes[i]} but found ${rootHistory[i]?.root_hash}`
-      );
-      return false;
-    }
-  }
-
-  let filesIntegrityIntact = true;
-  // Validate each root hash
-  for (const rootHash of manifestHashes) {
-    const datFilePath = path.join(
-      STORE_PATH,
-      storeId.toString("hex"),
-      `${rootHash}.dat`
+    const { latestStore } = await this.fetchCoinInfo();
+    const updateStoreResponse = updateStoreMetadata(
+      latestStore,
+      metadata.rootHash,
+      metadata.label,
+      metadata.description,
+      metadata.bytes,
+      publicSyntheticKey,
+      null,
+      null
     );
 
-    if (!fs.existsSync(datFilePath)) {
-      console.error(`Data file for root hash ${rootHash} not found`);
-      return false;
+    const fee = await calculateFeeForCoinSpends(peer, null);
+    const unspentCoins = await selectUnspentCoins(peer, BigInt(0), fee);
+    const feeCoinSpends = await addFee(
+      publicSyntheticKey,
+      unspentCoins,
+      updateStoreResponse.coinSpends.map((coinSpend) =>
+        getCoinId(coinSpend.coin)
+      ),
+      fee
+    );
+
+    const combinedCoinSpends = [
+      ...(updateStoreResponse.coinSpends as CoinSpend[]),
+      ...(feeCoinSpends as CoinSpend[]),
+    ];
+
+    const sig = signCoinSpends(
+      combinedCoinSpends,
+      [await wallet.getPrivateSyntheticKey()],
+      false
+    );
+    const err = await peer.broadcastSpend(combinedCoinSpends, [sig]);
+
+    if (err) {
+      throw new Error(err);
     }
 
-    const datFileContent = JSON.parse(
-      fs.readFileSync(datFilePath, "utf-8")
-    ) as DatFile;
-
-    if (datFileContent.root !== rootHash) {
-      console.error(
-        `Root hash in data file does not match: ${datFileContent.root} !== ${rootHash}`
-      );
-      return false;
-    }
-
-    // Validate SHA256 hashes of the files
-    for (const [fileKey, fileData] of Object.entries(datFileContent.files)) {
-      const integrityCheck = validateFileSha256(
-        fileData.sha256,
-        path.join(STORE_PATH, storeId.toString("hex"), "data")
-      );
-
-      if (process.env.DIG_DEBUG == "1") {
-        console.log(
-          `Key ${fileKey}: SHA256 = ${fileData.sha256}, integrity: ${
-            integrityCheck ? "OK" : "FAILED"
-          }`
-        );
-      }
-
-      if (!integrityCheck) {
-        filesIntegrityIntact = false;
-      }
-    }
+    return updateStoreResponse.newStore;
   }
-
-  if (!filesIntegrityIntact) {
-    console.error(`Store Corrupted: Data failed SHA256 validation.`);
-
-    return false;
-  }
-
-  if (process.env.DIG_DEBUG == "1") {
-    console.log("Store validation successful.");
-  }
-
-  return true;
-};
-
-export const isStoreSynced = async (storeId: Buffer): Promise<boolean> => {
-
-  if (!storeId) {
-    console.error("No launcher ID found in the current directory");
-    return false;
-  }
-
-  console.log(`Checking if store ${storeId.toString("hex")} is up to date...`);
-
-  const rootHistory = await getRootHistory(storeId);
-
-  console.log("Root history length:", rootHistory.length);
-
-  // Load manifest file
-  const manifestFilePath = getManifestFilePath(storeId.toString("hex"));
-  if (!fs.existsSync(manifestFilePath)) {
-    return false;
-  }
-  
-  const manifestHashes = fs
-    .readFileSync(manifestFilePath, "utf-8")
-    .split("\n")
-    .filter(Boolean);
-
-  console.log("Manifest length:", manifestHashes.length);
-
-  return rootHistory.length === manifestHashes.length;
 }

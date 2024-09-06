@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { getOwnerPublicKey } from "../../blockchain/keys";
+import { Wallet } from "../../blockchain";
 import { getStoresList } from "../../utils/config";
 
 /**
@@ -13,7 +13,8 @@ import { getStoresList } from "../../utils/config";
 export const getWellKnown = async (req: Request, res: Response) => {
     try {
         // Get the owner's public key
-        const publicKey = await getOwnerPublicKey();
+        const wallet = await Wallet.load("default");
+        const publicKey = await wallet.getOwnerPublicKey();
 
         // Construct the known stores endpoint using the request host
         const knownStoresEndpoint = `${req.protocol}://${req.get('host')}/.well-known/stores`;

@@ -1,6 +1,9 @@
 import { SimpleIntervalJob, Task } from "toad-scheduler";
 import { getPublicIpAddress } from "../../utils/network";
-import { NconfManager } from "../../utils/nconfManager";
+import { NconfManager } from "../../utils/NconfManager";
+import { Mutex } from "async-mutex";
+
+const mutex = new Mutex();
 
 const PUBLIC_IP_KEY = "publicIp";
 
@@ -22,9 +25,16 @@ const savePublicIp = async (): Promise<void> => {
 
 // Task that runs at a regular interval to save the public IP
 const task = new Task("save-public-ip", async () => {
-  console.log("Starting save-public-ip task...");
-  await savePublicIp();
-  console.log("save-public-ip task completed.");
+  if (!mutex.isLocked()) {
+    const releaseMutex = await mutex.acquire();
+    try {
+      console.log("Starting save-public-ip task...");
+      await savePublicIp();
+      console.log("save-public-ip task completed.");
+    } finally {
+      releaseMutex();
+    }
+  }
 });
 
 const job = new SimpleIntervalJob(

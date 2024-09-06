@@ -18,7 +18,7 @@ services:
    #   - ~/.chia/mainnet:/root/.chia_keys
 
   propagation-server:
-    image: michaeltaylor3d/dig-propagation-server:latest
+    image: michaeltaylor3d/dig-propagation-server:1.0.0-alpha.1
    # depends_on:
    #   - chia-nodes
     ports:
@@ -27,13 +27,13 @@ services:
       - ~/.dig/remote:/.dig
     environment:
       - DIG_USERNAME=DCdgu7um1ieDkRumr6UO
-      - DIG_PASSWORD=HOzi7xR9xWps1mVY7JUe
+      - DIG_PASSWORD=changeme
       - DIG_FOLDER_PATH=/.dig
       - PORT=4159
       - REMOTE_NODE=1
 
   content-server:
-    image: michaeltaylor3d/dig-content-server:latest
+    image: michaeltaylor3d/dig-content-server:1.0.0-alpha.1
    # depends_on:
    #   - chia-nodes
     ports:
